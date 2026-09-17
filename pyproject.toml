@@ -1,0 +1,27 @@
+[project]
+name = "nomina-mcp"
+version = "1.0.0"
+description = "Financial markets research in Claude. Three tools, no API keys."
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "httpx>=0.28.1,<1",
+    "mcp>=2.2.0,<3",
+    "tzdata>=2025.2",
+]
+
+[project.scripts]
+nomina-mcp = "nomina.server:main"
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["nomina"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.12,<1"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100

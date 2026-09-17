@@ -1,0 +1,39 @@
+{
+  "manifest_version": "0.4",
+  "name": "nomina",
+  "display_name": "Nomina",
+  "version": "1.0.0",
+  "description": "Markets research for agents, from the team building SolverNet. Research only — no trading, no accounts.",
+  "long_description": "The next wave of onchain users won't be people clicking through interfaces. They'll be agents that state what they want and let the network figure out the rest.\n\nThat's what SolverNet does. An agent declares an outcome, solvers compete to deliver it, and all the messy parts — routing, bridging, gas — happen underneath. Over 7.5 million transactions so far across Ethereum mainnet, Arbitrum, Base, and Optimism.\n\nBut an agent is only as good as what it knows. So we started there.\n\nThis extension is the first piece. Ask Claude the questions you'd actually ask an analyst. Is the AI capex trade rotating into power and cooling? How has ETH tracked the Nasdaq since the last cut? Show me semis leadership against BTC over six months. Nomina finds the symbols, pulls the history, lines up the dates, and brings back the news behind the moves. Claude does the thinking.\n\nThe AI trade and the crypto trade stopped being separate markets a while ago. Nomina is built for agents that already get that.\n\nRight now it reads. An agent has to see a market before it can move in one, and that's where this is going. For today, research only. No account, no dashboard, no trading access.\n\nData comes from Yahoo Finance's public endpoints and can be delayed, unavailable, or rate-limited — this is research, not a real-time execution feed or a financial-statements service. Data rights are not included: Yahoo's terms restrict automated collection without permission and redistribution; review those terms before use. Only your search terms, symbols, and requested history period are sent to Yahoo — Nomina stores no conversations or queries. Requires a Claude Desktop release with MCPB v0.4 UV-runtime support and internet access for the first install and for market queries.",
+  "author": { "name": "Nomina" },
+  "icon": "icon.png",
+  "server": {
+    "type": "uv",
+    "entry_point": "server.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": ["run", "--frozen", "--no-dev", "--directory", "${__dirname}", "server.py"]
+    }
+  },
+  "tools": [
+    { "name": "search_markets", "description": "Discover ticker symbols and dated financial news links." },
+    { "name": "research_asset", "description": "Research an asset with source-backed prices, historical performance and news." },
+    { "name": "compare_assets", "description": "Compare 2–6 assets using aligned dates and explicit currency and adjustment caveats." }
+  ],
+  "prompts": [
+    { "name": "research_brief", "description": "Start a concise, cited financial research brief.", "arguments": ["topic"], "text": "Use Nomina to research ${arguments.topic}. Cite source links and observation dates, distinguish facts from interpretation, and report missing data and limitations." }
+  ],
+  "keywords": ["finance", "research", "markets", "stocks", "crypto"],
+  "privacy_policies": ["https://legal.yahoo.com/us/en/yahoo/privacy/index.html"],
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "python": ">=3.12,<3.14" }
+  },
+  "_meta": {
+    "io.nomina.brand": {
+      "icon_source": "https://cdn.prod.website-files.com/68641eb30b133c67fe4dd8b8/68cb0cba1d2b78461978c6f0_Logo%20for%20Square%20PFPs%20(2).png",
+      "icon_source_page": "https://www.nomina.io/brand/all",
+      "note": "icon.png is Nomina's own unmodified square icon asset (apple-touch-icon on nomina.io), served from Nomina's public brand page. Not a trademark grant; verify reuse rights with Nomina before wider distribution."
+    }
+  }
+}
