@@ -4,9 +4,9 @@
 #   ./scripts/publish.sh <owner>/<repo>
 #
 # Creates the GitHub repo (public), pushes main + tags, builds a fresh
-# Nomina.mcpb, and attaches it to a v1.0.0 release. Safe to re-run: repo
-# creation and the push are idempotent if the repo already exists; the
-# release step will fail loudly instead of silently overwriting one.
+# Nomina.mcpb, and attaches it to a v1.0.0 release. Refuses to run if an
+# existing 'origin' remote points anywhere other than <owner>/<repo>, so it
+# never pushes this project to an unrelated remote.
 set -euo pipefail
 
 REPO="${1:?usage: scripts/publish.sh <owner>/<repo>}"
@@ -16,8 +16,27 @@ cd "$ROOT"
 command -v gh >/dev/null || { echo "gh CLI not found." >&2; exit 1; }
 gh auth status >/dev/null || { echo "Run 'gh auth login' first." >&2; exit 1; }
 
+normalize_repo() {
+  local url="${1%.git}"
+  case "$url" in
+    git@github.com:*) echo "${url#git@github.com:}" ;;
+    ssh://git@github.com/*) echo "${url#ssh://git@github.com/}" ;;
+    https://github.com/*) echo "${url#https://github.com/}" ;;
+    *) echo "$url" ;;
+  esac
+}
+
 if git remote get-url origin >/dev/null 2>&1; then
-  echo "Remote 'origin' already set to $(git remote get-url origin); pushing there."
+  EXISTING_URL="$(git remote get-url origin)"
+  EXISTING_REPO="$(normalize_repo "$EXISTING_URL")"
+  if [[ "${EXISTING_REPO,,}" != "${REPO,,}" ]]; then
+    echo "Remote 'origin' is '$EXISTING_URL' (-> $EXISTING_REPO)," >&2
+    echo "which does not match requested '$REPO'. Refusing to push to an" >&2
+    echo "unrelated remote. Run 'git remote remove origin' first if you" >&2
+    echo "intend to retarget this repo." >&2
+    exit 1
+  fi
+  echo "Remote 'origin' already matches $REPO; pushing there."
 else
   gh repo create "$REPO" --public --source=. --remote=origin
 fi
