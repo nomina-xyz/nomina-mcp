@@ -29,7 +29,8 @@ normalize_repo() {
 if git remote get-url origin >/dev/null 2>&1; then
   EXISTING_URL="$(git remote get-url origin)"
   EXISTING_REPO="$(normalize_repo "$EXISTING_URL")"
-  if [[ "${EXISTING_REPO,,}" != "${REPO,,}" ]]; then
+  if [[ "$(printf '%s' "$EXISTING_REPO" | tr '[:upper:]' '[:lower:]')" != \
+        "$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')" ]]; then
     echo "Remote 'origin' is '$EXISTING_URL' (-> $EXISTING_REPO)," >&2
     echo "which does not match requested '$REPO'. Refusing to push to an" >&2
     echo "unrelated remote. Run 'git remote remove origin' first if you" >&2
