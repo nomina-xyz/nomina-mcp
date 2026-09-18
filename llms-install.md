@@ -43,8 +43,8 @@ secrets.
 
 ## Verify
 
-Restart the client and confirm three tools are exposed: `search_markets`,
-`research_asset`, and `compare_assets`. A direct check without a client:
+Restart the client and confirm four tools are exposed: `search_markets`,
+`research_asset`, `compare_assets`, and `market_overview`. A direct check without a client:
 
 ```sh
 printf '%s\n' \
@@ -54,7 +54,7 @@ printf '%s\n' \
   | uv run --frozen --no-dev --directory /absolute/path/to/nomina-mcp server.py
 ```
 
-The `tools/list` response must list all three tool names. `tools/list` sent before the
+The `tools/list` response must list all four tool names. `tools/list` sent before the
 `notifications/initialized` line returns nothing useful, so keep the order above.
 
 A first run downloads the interpreter and dependencies and may take a minute; later

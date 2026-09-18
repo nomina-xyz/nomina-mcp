@@ -12,7 +12,7 @@ public endpoints at `query1.finance.yahoo.com`:
 
 - the search terms you submit to `search_markets`;
 - the symbols you submit to `research_asset` and `compare_assets`;
-- the requested history period.
+- the requested history period or date window.
 
 Nothing else is sent anywhere. Yahoo receives ordinary connection metadata for those
 requests, such as your IP address and Nomina's `User-Agent` header.
