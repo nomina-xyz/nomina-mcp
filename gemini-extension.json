@@ -1,0 +1,12 @@
+{
+  "name": "nomina",
+  "version": "1.0.0",
+  "description": "Markets research for agents. Ticker search, price history, aligned comparisons. Read-only.",
+  "mcpServers": {
+    "nomina": {
+      "command": "uv",
+      "args": ["run", "--frozen", "--no-dev", "--directory", "${extensionPath}", "server.py"],
+      "cwd": "${extensionPath}"
+    }
+  }
+}
