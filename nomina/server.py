@@ -1,5 +1,7 @@
-"""Four read-only financial research tools, served locally over MCP stdio."""
+"""Four read-only financial research tools, served over MCP stdio or Streamable HTTP."""
 
+import argparse
+import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import date
@@ -203,7 +205,36 @@ def research_brief(topic: Query) -> str:
 
 
 def main() -> None:
-    mcp.run(transport="stdio")
+    parser = argparse.ArgumentParser(prog="nomina-mcp", description=__doc__)
+    parser.add_argument("--transport", choices=("stdio", "streamable-http"), default="stdio")
+    parser.add_argument("--host", default="127.0.0.1", help="Interface to bind (HTTP only).")
+    parser.add_argument(
+        "--port",
+        type=int,
+        default=int(os.environ.get("PORT", "8000")),
+        help="HTTP port (default: $PORT or 8000).",
+    )
+    parser.add_argument(
+        "--public-host",
+        default=os.environ.get("PUBLIC_HOST") or None,
+        help="Hostname clients use to reach the server, e.g. mcp.example.com (default: "
+        "$PUBLIC_HOST, else --host). Requests with another Host header are rejected.",
+    )
+    args = parser.parse_args()
+    if args.transport == "stdio":
+        mcp.run(transport="stdio")
+        return
+
+    import uvicorn
+
+    from nomina.http import build_app
+
+    uvicorn.run(
+        build_app(args.public_host or args.host),
+        host=args.host,
+        port=args.port,
+        log_level="warning",
+    )
 
 
 if __name__ == "__main__":
