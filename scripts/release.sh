@@ -40,6 +40,9 @@ if [[ "$BUILT_VERSION" != "$VERSION" ]]; then
   echo "server.json is at $BUILT_VERSION, not $VERSION; bump and commit first." >&2
   exit 1
 fi
+# Schema-check registry metadata (field lengths, identifiers) before any push or tag;
+# the sha placeholder is already a valid hash string, so this is complete apart from it.
+mcp-publisher validate
 
 SHA="$(shasum -a 256 dist/Nomina.mcpb | cut -d' ' -f1)"
 jq --arg sha "$SHA" '.packages[0].fileSha256 = $sha' server.json > server.json.tmp
@@ -55,7 +58,6 @@ gh release create "$TAG" dist/Nomina.mcpb --title "Nomina $TAG" --notes-file "$N
 
 # Registry JWTs live five minutes; log in immediately before publishing.
 mcp-publisher login github --token "$(gh auth token)"
-mcp-publisher validate
 mcp-publisher publish
 
 PUBLISHED="$(curl -s "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.nomina-xyz/nomina-mcp" \
