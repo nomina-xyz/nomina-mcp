@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.nomina-xyz/nomina-mcp",
   "title": "Nomina",
-  "description": "Markets research for agents. Ticker search, price history, aligned comparisons. Read-only.",
-  "version": "1.1.0",
+  "description": "Markets research for agents. Ticker search, price history, date windows, aligned comparisons, market overview. Read-only.",
+  "version": "1.2.0",
   "repository": {
     "url": "https://github.com/nomina-xyz/nomina-mcp",
     "source": "github"
@@ -18,8 +18,8 @@
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/nomina-xyz/nomina-mcp/releases/download/v1.1.0/Nomina.mcpb",
-      "version": "1.1.0",
+      "identifier": "https://github.com/nomina-xyz/nomina-mcp/releases/download/v1.2.0/Nomina.mcpb",
+      "version": "1.2.0",
       "fileSha256": "04c8f2167c01c12990129c57b12b7f1905b90dd7df0140685db45cebb6b25c5b",
       "transport": {
         "type": "stdio"
