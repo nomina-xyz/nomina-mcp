@@ -45,12 +45,6 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=ref,event=branch
-      - name: Recreate the GHCR package so it picks up the org's current default visibility
-        if: github.event_name == 'workflow_dispatch'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh api -X DELETE "/orgs/${{ github.repository_owner }}/packages/container/nomina-mcp"
       - uses: docker/build-push-action@v6
         with:
           context: .
