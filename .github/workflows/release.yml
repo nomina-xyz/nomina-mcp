@@ -1,0 +1,76 @@
+name: Release
+
+# Tag push (v*): test, build the bundle, push the container image, attach the bundle to the
+# GitHub release created by scripts/release.sh, then publish to the MCP Registry.
+# Manual dispatch: dry run that stops after pushing the image for the current ref, so the
+# GHCR package (and its visibility) can be checked before a release is cut.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run --frozen ruff check .
+      - run: uv run --frozen pytest -q
+      - run: uv run --frozen python scripts/build_bundle.py
+      - name: Confirm the bundle is byte-identical to the one server.json references
+        if: startsWith(github.ref, 'refs/tags/')
+        run: echo "$(jq -r '.packages[0].fileSha256' server.json)  dist/Nomina.mcpb" | shasum -a 256 -c
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          # v1.3.0 -> 1.3.0 and latest; a branch dispatch -> the branch name only.
+          tags: |
+            type=semver,pattern={{version}}
+            type=ref,event=branch
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - name: Confirm the image is publicly pullable
+        run: |
+          set -euo pipefail
+          tag="$(echo '${{ steps.meta.outputs.tags }}' | head -n1 | cut -d: -f2)"
+          token="$(curl -fsS "https://ghcr.io/token?scope=repository:${{ github.repository }}:pull" | jq -r .token)"
+          curl -fsS -o /dev/null -H "Authorization: Bearer $token" \
+            -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json" \
+            "https://ghcr.io/v2/${{ github.repository }}/manifests/$tag" \
+            || { echo "ghcr.io/${{ github.repository }} is not public; set the package visibility to Public in its GitHub settings." >&2; exit 1; }
+
+      - name: Attach the bundle to the GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/Nomina.mcpb --clobber
+      - name: Publish to the MCP Registry
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          set -euo pipefail
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
