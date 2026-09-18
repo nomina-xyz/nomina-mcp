@@ -45,6 +45,12 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=ref,event=branch
+      - name: Recreate the GHCR package so it picks up the org's current default visibility
+        if: github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X DELETE "/orgs/${{ github.repository_owner }}/packages/container/nomina-mcp"
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -52,14 +58,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-      - name: Try to make the GHCR package public (GitHub creates new packages private)
-        if: github.event_name == 'workflow_dispatch'
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh api -X PATCH -H "Accept: application/vnd.github.package-deletes-preview+json" \
-            "/orgs/${{ github.repository_owner }}/packages/container/nomina-mcp" -f visibility=public
       - name: Confirm the image is publicly pullable
         # The MCP Registry verifies OCI ownership by fetching the image anonymously, so a
         # private package (GitHub's default for a new package) would fail registry publishing.
