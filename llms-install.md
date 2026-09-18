@@ -68,4 +68,4 @@ starts are fast.
   root, the directory holding `server.py` and `pyproject.toml`.
 - Tool calls return explicit upstream errors — expected when Yahoo Finance's public
   endpoints throttle or omit data. The server surfaces the error rather than inventing
-  values. See "Data sources and limits" in `README.md`.
+  values. See https://nomina-xyz.github.io/nomina-mcp/data-sources/.
