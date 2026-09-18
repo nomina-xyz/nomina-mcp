@@ -1,0 +1,11 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "nomina",
+  "version": "1.0.0",
+  "description": "Markets research for agents. Ticker search, price history, aligned comparisons. Read-only.",
+  "author": { "name": "Nomina" },
+  "homepage": "https://www.nomina.io",
+  "repository": "https://github.com/nomina-xyz/nomina-mcp",
+  "license": "MIT",
+  "keywords": ["finance", "research", "markets", "stocks", "crypto"]
+}
