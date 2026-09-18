@@ -3,7 +3,7 @@
   "name": "io.github.nomina-xyz/nomina-mcp",
   "title": "Nomina",
   "description": "Read-only markets research for agents: ticker search, price history, date windows, comparisons.",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "repository": {
     "url": "https://github.com/nomina-xyz/nomina-mcp",
     "source": "github"
@@ -18,11 +18,27 @@
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/nomina-xyz/nomina-mcp/releases/download/v1.2.0/Nomina.mcpb",
-      "version": "1.2.0",
+      "identifier": "https://github.com/nomina-xyz/nomina-mcp/releases/download/v1.3.0/Nomina.mcpb",
+      "version": "1.3.0",
       "fileSha256": "b7ac4a7b46952415344236d18908dcd48f746816b48bc39610ff8807f858b4f5",
       "transport": {
         "type": "stdio"
+      }
+    },
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/nomina-xyz/nomina-mcp:1.3.0",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "-p",
+          "value": "8000:8000",
+          "description": "Publish the container's Streamable HTTP port on localhost."
+        }
+      ],
+      "transport": {
+        "type": "streamable-http",
+        "url": "http://localhost:8000/mcp"
       }
     }
   ]
