@@ -15,7 +15,7 @@ Four read-only tools over Yahoo Finance's public endpoints, no API key:
 
 ## Pages
 
-- [Install](install/) — Claude Desktop, Claude Code and other stdio clients, Gemini CLI, Agent Plugins, MCP Registry.
+- [Install](install/) — Claude Desktop, Claude Code and other stdio clients, Gemini CLI, Agent Plugins, MCP Registry, self-hosted Docker (Streamable HTTP).
 - [Tools](tools/) — parameters, constraints, response keys, and what the tools are not.
 - [Privacy policy](privacy/) — what is sent, what is stored (nothing), third parties.
 - [Data sources and limits](data-sources/) — Yahoo Finance terms, methodology limits, branding.

@@ -33,6 +33,9 @@ release with MCPB v0.4 UV-runtime support and internet access on first install.
 }
 ```
 
+**Self-hosted (Streamable HTTP):** `docker run --rm -p 8000:8000 ghcr.io/nomina-xyz/nomina-mcp:1.3.0`,
+then connect to `http://localhost:8000/mcp`. Details in the docs below.
+
 ## Docs
 
 Install guides, tool reference, privacy policy, and data-source limits:

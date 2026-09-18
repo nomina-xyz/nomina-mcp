@@ -1,8 +1,8 @@
 # Install
 
-Nomina is a local stdio MCP server. Every surface below launches the same
-`server.py` with [uv](https://docs.astral.sh/uv/); nothing needs an API key, account,
-or environment variable.
+Nomina is a stdio MCP server that can also serve Streamable HTTP. Every surface below
+launches the same `server.py` with [uv](https://docs.astral.sh/uv/); nothing needs an API
+key, account, or environment variable.
 
 ## Claude Desktop
 
@@ -52,8 +52,39 @@ Registry-aware clients can install it by that name; verify the current entry wit
 curl "https://registry.modelcontextprotocol.io/v0.1/servers?search=io.github.nomina-xyz/nomina-mcp"
 ```
 
+## Self-hosted (Docker)
+
+The container image `ghcr.io/nomina-xyz/nomina-mcp` serves Streamable HTTP at `/mcp` and a
+liveness probe at `/healthz`, with no per-session state, so it can run behind any load
+balancer:
+
+```sh
+docker run --rm -p 8000:8000 ghcr.io/nomina-xyz/nomina-mcp:1.3.0
+```
+
+Then point a Streamable HTTP client at it:
+
+```json
+{
+  "mcpServers": {
+    "nomina": { "type": "streamableHttp", "url": "http://localhost:8000/mcp" }
+  }
+}
+```
+
+DNS-rebinding protection accepts requests addressed to `localhost`, `127.0.0.1`, or the
+public hostname; anything else is rejected with HTTP 421. On a public hostname set
+`PUBLIC_HOST` (`docker run -e PUBLIC_HOST=mcp.example.com …`) or pass
+`--public-host mcp.example.com`. The port follows `PORT` or `--port`, default 8000.
+
+Without Docker, the same mode runs from a clone:
+
+```sh
+uv run --frozen --no-dev server.py --transport streamable-http --port 8000
+```
+
 ## For agents
 
 An AI agent installing Nomina on a user's behalf should follow
 [`llms-install.md`](https://github.com/nomina-xyz/nomina-mcp/blob/main/llms-install.md),
-which includes a stdio handshake to confirm the three tools are exposed.
+which includes a stdio handshake to confirm the four tools are exposed.
