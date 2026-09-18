@@ -21,6 +21,7 @@ BUNDLE_FILES = (
     "nomina/__init__.py",
     "nomina/server.py",
     "nomina/market.py",
+    "nomina/http.py",
     "icon.png",
 )
 _PACKAGE_IDENTIFIERS = {
@@ -31,6 +32,17 @@ _PACKAGE_IDENTIFIERS = {
 
 def _json(name: str) -> dict:
     return json.loads((ROOT / name).read_text())
+
+
+def check_bundle_files() -> None:
+    """Exit if a module under nomina/ would be left out of the bundle."""
+    missing = sorted(
+        str(path.relative_to(ROOT))
+        for path in (ROOT / "nomina").glob("*.py")
+        if str(path.relative_to(ROOT)) not in BUNDLE_FILES
+    )
+    if missing:
+        raise SystemExit(f"Add to BUNDLE_FILES or delete: {', '.join(missing)}")
 
 
 def check_versions() -> str:
@@ -69,6 +81,7 @@ def check_versions() -> str:
 
 
 def main() -> None:
+    check_bundle_files()
     check_versions()
     uv = shutil.which("uv")
     if not uv:
