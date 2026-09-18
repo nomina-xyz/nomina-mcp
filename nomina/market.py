@@ -5,8 +5,11 @@ from __future__ import annotations
 import asyncio
 import math
 import re
+import statistics
+import time
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
+from itertools import pairwise
 from typing import Any, Literal
 from urllib.parse import quote, urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -15,12 +18,36 @@ import httpx
 
 Period = Literal["1mo", "3mo", "6mo", "1y", "5y", "ytd"]
 
+OVERVIEW_SYMBOLS = (
+    "^GSPC",
+    "^IXIC",
+    "^DJI",
+    "^RUT",
+    "^VIX",
+    "^TNX",
+    "DX-Y.NYB",
+    "GC=F",
+    "CL=F",
+    "BTC-USD",
+    "ETH-USD",
+    "EURUSD=X",
+)
+
 _YAHOO_ORIGIN = "https://query1.finance.yahoo.com"
 _CHART_URL = _YAHOO_ORIGIN + "/v8/finance/chart/{}"
 _SEARCH_URL = _YAHOO_ORIGIN + "/v1/finance/search"
 _QUOTE_PAGE = "https://finance.yahoo.com/quote/{}"
 _PERIODS = {"1mo", "3mo", "6mo", "1y", "5y", "ytd"}
 _SYMBOL = re.compile(r"[A-Za-z0-9^=._-]{1,32}\Z")
+_MAX_WINDOW_DAYS = 9131  # 25 years
+_CACHE_TTL_SECONDS = 60
+_CACHE_MAX_ENTRIES = 256
+_WINDOW_CAVEAT = (
+    "Explicit date window; observations are the provider's available sessions inside the window."
+)
+_STATISTICS_CAVEAT = (
+    "Volatility and drawdown are descriptive statistics of the returned series, not forecasts."
+)
 
 
 class MarketDataError(Exception):
@@ -115,6 +142,46 @@ def _normalize_period(period: str) -> str:
     return period
 
 
+def _normalize_window(start: date | None, end: date | None) -> tuple[date, date] | None:
+    if start is None and end is None:
+        return None
+    if start is None or end is None:
+        raise MarketDataError("Provide both start and end dates, or neither.")
+    if not isinstance(start, date) or not isinstance(end, date):
+        raise MarketDataError("start and end must be ISO dates (YYYY-MM-DD).")
+    if isinstance(start, datetime):
+        start = start.date()
+    if isinstance(end, datetime):
+        end = end.date()
+    if start >= end:
+        raise MarketDataError("start must be earlier than end.")
+    if end > datetime.now(UTC).date():
+        raise MarketDataError("end cannot be in the future.")
+    if (end - start).days > _MAX_WINDOW_DAYS:
+        raise MarketDataError("Date windows are limited to 25 years.")
+    return start, end
+
+
+def _period_interval(period: str) -> str:
+    return "1wk" if period == "5y" else "1d"
+
+
+def _window_interval(start: date, end: date) -> str:
+    return "1d" if (end - start).days <= 730 else "1wk"
+
+
+def _window_label(start: date, end: date) -> str:
+    return f"{start.isoformat()}..{end.isoformat()}"
+
+
+def _unix_midnight(value: date) -> int:
+    return int(datetime(value.year, value.month, value.day, tzinfo=UTC).timestamp())
+
+
+def _chart_error_message(exc: BaseException) -> str:
+    return str(exc) if isinstance(exc, MarketDataError) else "Yahoo Finance chart retrieval failed."
+
+
 def _https_url(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
@@ -179,6 +246,7 @@ class MarketData:
 
     def __init__(self, client: httpx.AsyncClient) -> None:
         self.client = client
+        self._cache: dict[str, tuple[float, Any]] = {}
 
     async def search(self, query: str, limit: int = 6) -> dict[str, Any]:
         """Return Yahoo Finance's bounded related instruments and linked headlines."""
@@ -243,12 +311,24 @@ class MarketData:
             "caveats": caveats,
         }
 
-    async def research(self, symbol: str, period: Period = "3mo") -> dict[str, Any]:
+    async def research(
+        self,
+        symbol: str,
+        period: Period = "3mo",
+        *,
+        start: date | None = None,
+        end: date | None = None,
+    ) -> dict[str, Any]:
         """Return a chart-backed asset report, retaining chart data if news is unavailable."""
         normalized = _normalize_symbol(symbol)
-        selected_period = _normalize_period(period)
+        window = _normalize_window(start, end)
+        chart_request = (
+            self._fetch_chart_window(normalized, *window)
+            if window
+            else self._fetch_chart(normalized, _normalize_period(period))
+        )
         chart_result, news_result = await asyncio.gather(
-            self._fetch_chart(normalized, selected_period),
+            chart_request,
             self._search_payload(normalized, 6),
             return_exceptions=True,
         )
@@ -315,6 +395,9 @@ class MarketData:
             caveats.append(
                 "The provider did not supply an exchange timezone; historical dates use UTC."
             )
+        if window:
+            caveats.append(_WINDOW_CAVEAT)
+        caveats.append(_STATISTICS_CAVEAT)
 
         return {
             "symbol": chart.symbol,
@@ -336,6 +419,7 @@ class MarketData:
                 "day_low": chart.day_low,
             },
             "period_performance": performance,
+            "statistics": self._statistics(chart.bars, chart.return_basis, chart.interval),
             "price_history": [
                 {
                     "date": bar.date,
@@ -350,7 +434,14 @@ class MarketData:
             "caveats": caveats,
         }
 
-    async def compare(self, symbols: list[str], period: Period = "3mo") -> dict[str, Any]:
+    async def compare(
+        self,
+        symbols: list[str],
+        period: Period = "3mo",
+        *,
+        start: date | None = None,
+        end: date | None = None,
+    ) -> dict[str, Any]:
         """Compare chart returns only over common observation dates among available assets."""
         if not isinstance(symbols, list):
             raise MarketDataError("Symbols must be a list containing 2 to 6 unique symbols.")
@@ -361,22 +452,22 @@ class MarketData:
                 normalised.append(candidate)
         if not 2 <= len(normalised) <= 6:
             raise MarketDataError("Comparison requires 2 to 6 unique symbols.")
-        selected_period = _normalize_period(period)
+        window = _normalize_window(start, end)
+        if window:
+            requests = [self._fetch_chart_window(symbol, *window) for symbol in normalised]
+            period_label, interval = _window_label(*window), _window_interval(*window)
+        else:
+            selected_period = _normalize_period(period)
+            requests = [self._fetch_chart(symbol, selected_period) for symbol in normalised]
+            period_label, interval = selected_period, _period_interval(selected_period)
 
-        results = await asyncio.gather(
-            *(self._fetch_chart(symbol, selected_period) for symbol in normalised),
-            return_exceptions=True,
-        )
+        results = await asyncio.gather(*requests, return_exceptions=True)
         charts: dict[str, _Chart] = {}
         assets: list[dict[str, Any]] = []
         errors: list[dict[str, str]] = []
         for symbol, result in zip(normalised, results, strict=True):
             if isinstance(result, Exception):
-                message = (
-                    str(result)
-                    if isinstance(result, MarketDataError)
-                    else "Yahoo Finance chart retrieval failed."
-                )
+                message = _chart_error_message(result)
                 errors.append({"symbol": symbol, "message": message})
                 assets.append({"symbol": symbol, "available": False, "error": message})
             else:
@@ -457,10 +548,17 @@ class MarketData:
 
         assets_by_symbol = {asset["symbol"]: asset for asset in assets}
         ordered_assets = [assets_by_symbol[symbol] for symbol in normalised]
+        caveats = [
+            "Each asset is reported in its local currency; no foreign-exchange conversion is performed.",
+            "The latest chart bar can be incomplete; Yahoo Finance prices may be delayed.",
+            "Shared exchange-local session dates need not have identical market closing times.",
+        ]
+        if window:
+            caveats.append(_WINDOW_CAVEAT)
         return {
             "symbols": normalised,
-            "period": selected_period,
-            "interval": "1wk" if selected_period == "5y" else "1d",
+            "period": period_label,
+            "interval": interval,
             "retrieved_at": _now(),
             "assets": ordered_assets,
             "partial_errors": errors,
@@ -471,10 +569,55 @@ class MarketData:
                 "returns_comparable": returns_comparable,
                 "note": comparison_note,
             },
+            "caveats": caveats,
+        }
+
+    async def overview(self, period: Period = "1mo") -> dict[str, Any]:
+        """Return period returns for a fixed basket of indexes, rates, commodities and crypto."""
+        selected_period = _normalize_period(period)
+        results = await asyncio.gather(
+            *(self._fetch_chart(symbol, selected_period) for symbol in OVERVIEW_SYMBOLS),
+            return_exceptions=True,
+        )
+        assets: list[dict[str, Any]] = []
+        errors: list[dict[str, str]] = []
+        for symbol, result in zip(OVERVIEW_SYMBOLS, results, strict=True):
+            if isinstance(result, Exception):
+                message = _chart_error_message(result)
+                errors.append({"symbol": symbol, "message": message})
+                assets.append({"symbol": symbol, "available": False, "error": message})
+                continue
+            assert isinstance(result, _Chart)
+            assets.append(
+                {
+                    "symbol": result.symbol,
+                    "available": True,
+                    "name": result.name,
+                    "asset_type": result.asset_type,
+                    "currency": result.currency,
+                    "latest_price": {
+                        "value": result.quote_price,
+                        "price_timestamp": result.provider_as_of,
+                    },
+                    "period_performance": self._performance(result.bars, result.return_basis),
+                    "source": _source(
+                        "Yahoo Finance chart", result.source_url, result.provider_as_of
+                    ),
+                }
+            )
+        if len(errors) == len(OVERVIEW_SYMBOLS):
+            raise MarketDataError("Yahoo Finance could not retrieve any overview charts.")
+        return {
+            "period": selected_period,
+            "interval": _period_interval(selected_period),
+            "retrieved_at": _now(),
+            "assets": assets,
+            "partial_errors": errors,
             "caveats": [
                 "Each asset is reported in its local currency; no foreign-exchange conversion is performed.",
                 "The latest chart bar can be incomplete; Yahoo Finance prices may be delayed.",
                 "Shared exchange-local session dates need not have identical market closing times.",
+                "Basket membership is fixed by Nomina, not a provider index.",
             ],
         }
 
@@ -491,11 +634,37 @@ class MarketData:
         return payload, source_url
 
     async def _fetch_chart(self, symbol: str, period: str) -> _Chart:
-        interval = "1wk" if period == "5y" else "1d"
+        interval = _period_interval(period)
         url = _CHART_URL.format(quote(symbol, safe=""))
         params = {"range": period, "interval": interval}
         source_url = str(httpx.URL(url, params=params))
         payload = await self._get_json(url, params, f"chart for {symbol}")
+        return self._parse_chart(
+            symbol, payload, period_label=period, interval=interval, source_url=source_url
+        )
+
+    async def _fetch_chart_window(self, symbol: str, start: date, end: date) -> _Chart:
+        interval = _window_interval(start, end)
+        url = _CHART_URL.format(quote(symbol, safe=""))
+        params = {
+            "period1": str(_unix_midnight(start)),
+            "period2": str(_unix_midnight(end + timedelta(days=1))),
+            "interval": interval,
+        }
+        source_url = str(httpx.URL(url, params=params))
+        payload = await self._get_json(url, params, f"chart for {symbol}")
+        return self._parse_chart(
+            symbol,
+            payload,
+            period_label=_window_label(start, end),
+            interval=interval,
+            source_url=source_url,
+        )
+
+    @staticmethod
+    def _parse_chart(
+        symbol: str, payload: Any, *, period_label: str, interval: str, source_url: str
+    ) -> _Chart:
         if not isinstance(payload, dict):
             raise MarketDataError(
                 f"Yahoo Finance returned a malformed chart response for {symbol}."
@@ -600,7 +769,7 @@ class MarketData:
             provider_as_of = _iso_timestamp(_timestamp(market_time))
         return _Chart(
             symbol=symbol,
-            period=period,
+            period=period_label,
             interval=interval,
             source_url=source_url,
             name=_text(meta.get("longName")) or _text(meta.get("shortName")),
@@ -616,6 +785,10 @@ class MarketData:
         )
 
     async def _get_json(self, url: str, params: dict[str, str], subject: str) -> Any:
+        key = str(httpx.URL(url, params=params))
+        cached = self._cache.get(key)
+        if cached is not None and time.monotonic() < cached[0]:
+            return cached[1]
         try:
             response = await self.client.get(url, params=params)
         except httpx.TimeoutException as exc:
@@ -639,11 +812,15 @@ class MarketData:
                 f"Yahoo Finance returned HTTP {response.status_code} while retrieving {subject}. Try again later."
             )
         try:
-            return response.json()
+            payload = response.json()
         except ValueError as exc:
             raise MarketDataError(
                 f"Yahoo Finance returned invalid JSON while retrieving {subject}."
             ) from exc
+        if key not in self._cache and len(self._cache) >= _CACHE_MAX_ENTRIES:
+            del self._cache[min(self._cache, key=lambda entry: self._cache[entry][0])]
+        self._cache[key] = (time.monotonic() + _CACHE_TTL_SECONDS, payload)
+        return payload
 
     @staticmethod
     def _performance(bars: list[_Bar], basis: str) -> dict[str, Any]:
@@ -673,3 +850,29 @@ class MarketData:
             "last_observation_date": last.date,
             "explanation": explanation,
         }
+
+    @staticmethod
+    def _statistics(bars: list[_Bar], basis: str, interval: str) -> dict[str, Any]:
+        values = [bar.adjusted_close if basis == "adjusted_close" else bar.close for bar in bars]
+        result: dict[str, Any] = {
+            "observation_count": len(values),
+            "max_drawdown_percent": None,
+            "annualized_volatility_percent": None,
+            "explanation": None,
+        }
+        if len(values) < 3 or any(value is None or value <= 0 for value in values):
+            result["explanation"] = "Statistics need at least three positive price observations."
+            return result
+        series = [value for value in values if value is not None]
+        peak = series[0]
+        drawdown = 0.0
+        for value in series:
+            peak = max(peak, value)
+            drawdown = min(drawdown, (value / peak - 1) * 100)
+        log_returns = [math.log(later / earlier) for earlier, later in pairwise(series)]
+        periods_per_year = 52 if interval == "1wk" else 252
+        result["max_drawdown_percent"] = drawdown
+        result["annualized_volatility_percent"] = (
+            statistics.stdev(log_returns) * math.sqrt(periods_per_year) * 100
+        )
+        return result
