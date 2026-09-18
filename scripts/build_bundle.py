@@ -3,7 +3,9 @@
 Run with: uv run python scripts/build_bundle.py
 """
 
+import hashlib
 import json
+import re
 import shutil
 import tomllib
 from pathlib import Path
@@ -21,13 +23,47 @@ BUNDLE_FILES = (
     "nomina/market.py",
     "icon.png",
 )
+_MCPB_IDENTIFIER = "https://github.com/nomina-xyz/nomina-mcp/releases/download/v{}/Nomina.mcpb"
+
+
+def _json(name: str) -> dict:
+    return json.loads((ROOT / name).read_text())
+
+
+def check_versions() -> str:
+    """Return the single release version, or exit naming every out-of-step file."""
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    server = _json("server.json")
+    lock = tomllib.loads((ROOT / "uv.lock").read_text())
+    init_source = (ROOT / "nomina" / "__init__.py").read_text()
+    init_match = re.search(r'^__version__ = "(.+)"$', init_source, re.MULTILINE)
+    versions = {
+        "manifest.json": _json("manifest.json")["version"],
+        "pyproject.toml": project["project"]["version"],
+        "uv.lock": next(
+            (p["version"] for p in lock["package"] if p["name"] == project["project"]["name"]),
+            None,
+        ),
+        "server.json": server["version"],
+        "server.json.packages[0]": server["packages"][0]["version"],
+        "gemini-extension.json": _json("gemini-extension.json")["version"],
+        "plugin.json": _json("plugin.json")["version"],
+        "nomina/__init__.py": init_match.group(1) if init_match else None,
+    }
+    if len(set(versions.values())) != 1:
+        raise SystemExit(
+            "Version mismatch: " + ", ".join(f"{name}={value}" for name, value in versions.items())
+        )
+    version = versions["pyproject.toml"]
+    identifier = server["packages"][0]["identifier"]
+    expected = _MCPB_IDENTIFIER.format(version)
+    if identifier != expected:
+        raise SystemExit(f"server.json packages[0].identifier must be {expected}, got {identifier}")
+    return version
 
 
 def main() -> None:
-    manifest = json.loads((ROOT / "manifest.json").read_text())
-    project = tomllib.loads((ROOT / "pyproject.toml").read_text())
-    if manifest["version"] != project["project"]["version"]:
-        raise SystemExit("Bundle and package versions must match.")
+    check_versions()
     uv = shutil.which("uv")
     if not uv:
         raise SystemExit("Install uv before building the bundle.")
@@ -50,6 +86,7 @@ def main() -> None:
     }
     (destination / "claude_desktop_config.json").write_text(json.dumps(config, indent=2) + "\n")
     print(f"Built {bundle} ({bundle.stat().st_size:,} bytes)")
+    print(f"sha256  {hashlib.sha256(bundle.read_bytes()).hexdigest()}")
     print(f"Alternative local launch config: {destination / 'claude_desktop_config.json'}")
 
 
