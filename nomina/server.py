@@ -8,9 +8,10 @@ import httpx
 from mcp.server import MCPServer
 from mcp.server.mcpserver import Context
 from mcp.server.mcpserver.exceptions import ToolError
-from mcp.types import ToolAnnotations
+from mcp.types import Icon, ToolAnnotations
 from pydantic import Field, StringConstraints
 
+from nomina import __version__
 from nomina.market import MarketData, MarketDataError, Period
 
 Query = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
@@ -54,7 +55,9 @@ SOURCE_GUIDE = {
         "The provider receives ordinary connection metadata such as your IP address. "
         "Claude and your MCP host have their own data handling policies."
     ),
-    "privacy_policy": "https://legal.yahoo.com/us/en/yahoo/privacy/index.html",
+    "privacy_policy": "https://nomina-xyz.github.io/nomina-mcp/privacy/",
+    "documentation": "https://nomina-xyz.github.io/nomina-mcp/",
+    "provider_privacy_policy": "https://legal.yahoo.com/us/en/yahoo/privacy/index.html",
     "terms": "https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html",
     "use": (
         "Data rights are not included. Yahoo's terms restrict automated collection without prior "
@@ -68,7 +71,7 @@ SOURCE_GUIDE = {
 async def lifespan(server: MCPServer) -> AsyncIterator[MarketData]:
     async with httpx.AsyncClient(
         headers={
-            "User-Agent": "Mozilla/5.0 (compatible; Nomina/1.0; financial market research)",
+            "User-Agent": f"Mozilla/5.0 (compatible; Nomina/{__version__}; financial market research)",
             "Accept": "application/json",
         },
         timeout=httpx.Timeout(15.0, connect=10.0),
@@ -80,12 +83,22 @@ async def lifespan(server: MCPServer) -> AsyncIterator[MarketData]:
 
 mcp = MCPServer(
     "Nomina",
-    version="1.0.0",
+    version=__version__,
     instructions=INSTRUCTIONS,
+    website_url="https://www.nomina.io",
+    icons=[
+        Icon(
+            src=f"https://raw.githubusercontent.com/nomina-xyz/nomina-mcp/v{__version__}/icon.png",
+            mime_type="image/png",
+            sizes=["256x256"],
+        )
+    ],
     lifespan=lifespan,
     log_level="WARNING",
 )
-READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=True)
+READ_ONLY = ToolAnnotations(
+    read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=True
+)
 
 
 @mcp.tool(title="Search financial markets", annotations=READ_ONLY)
