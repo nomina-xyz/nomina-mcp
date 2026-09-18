@@ -62,20 +62,20 @@ balancer:
 docker run --rm -p 8000:8000 ghcr.io/nomina-xyz/nomina-mcp:1.3.0
 ```
 
-Then point a Streamable HTTP client at it:
+Then point a Streamable HTTP client at `http://localhost:8000/mcp`. For Claude Code:
 
-```json
-{
-  "mcpServers": {
-    "nomina": { "type": "streamableHttp", "url": "http://localhost:8000/mcp" }
-  }
-}
+```sh
+claude mcp add --transport http nomina http://localhost:8000/mcp
 ```
 
+Other clients take the same URL in their own remote-server configuration.
+
 DNS-rebinding protection accepts requests addressed to `localhost`, `127.0.0.1`, or the
-public hostname; anything else is rejected with HTTP 421. On a public hostname set
-`PUBLIC_HOST` (`docker run -e PUBLIC_HOST=mcp.example.com …`) or pass
-`--public-host mcp.example.com`. The port follows `PORT` or `--port`, default 8000.
+public hostname; anything else is rejected with HTTP 421. Requests that carry a browser
+`Origin` header are accepted only from `localhost` origins (HTTP 403 otherwise);
+server-to-server clients send none. On a public hostname set `PUBLIC_HOST`
+(`docker run -e PUBLIC_HOST=mcp.example.com …`) or pass `--public-host mcp.example.com`.
+The port follows `PORT` or `--port`, default 8000.
 
 Without Docker, the same mode runs from a clone:
 

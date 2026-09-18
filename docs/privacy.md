@@ -19,9 +19,12 @@ requests, such as your IP address and Nomina's `User-Agent` header.
 
 ## Data stored
 
-None. Nomina stores no queries, conversation history, account details, or credentials. It
-keeps no logs, has no accounts, and sends no telemetry. A hosted build of Nomina keeps no
-request logs beyond the lifetime of the running process.
+None. Nomina stores no queries, conversation history, account details, or credentials. The
+server writes no log of requests or their contents, has no accounts, and sends no telemetry.
+Provider responses are held in process memory for up to 60 seconds so that repeated identical
+requests are not re-sent to Yahoo; nothing is written to disk. Whoever operates a hosted
+instance (a reverse proxy or hosting platform in front of it) may keep infrastructure
+connection logs under their own policy; Nomina itself adds none.
 
 ## Third parties
 
