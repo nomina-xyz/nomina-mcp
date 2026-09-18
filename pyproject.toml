@@ -1,7 +1,7 @@
 [project]
 name = "nomina-mcp"
-version = "1.1.0"
-description = "Financial markets research in Claude. Three tools, no API keys."
+version = "1.2.0"
+description = "Financial markets research in Claude. Four read-only tools, no API keys."
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "httpx>=0.28.1,<1",
