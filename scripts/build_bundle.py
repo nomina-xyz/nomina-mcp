@@ -23,7 +23,10 @@ BUNDLE_FILES = (
     "nomina/market.py",
     "icon.png",
 )
-_MCPB_IDENTIFIER = "https://github.com/nomina-xyz/nomina-mcp/releases/download/v{}/Nomina.mcpb"
+_PACKAGE_IDENTIFIERS = {
+    "mcpb": "https://github.com/nomina-xyz/nomina-mcp/releases/download/v{}/Nomina.mcpb",
+    "oci": "ghcr.io/nomina-xyz/nomina-mcp:{}",
+}
 
 
 def _json(name: str) -> dict:
@@ -55,10 +58,13 @@ def check_versions() -> str:
             "Version mismatch: " + ", ".join(f"{name}={value}" for name, value in versions.items())
         )
     version = versions["pyproject.toml"]
-    identifier = server["packages"][0]["identifier"]
-    expected = _MCPB_IDENTIFIER.format(version)
-    if identifier != expected:
-        raise SystemExit(f"server.json packages[0].identifier must be {expected}, got {identifier}")
+    for index, package in enumerate(server["packages"]):
+        expected = _PACKAGE_IDENTIFIERS[package["registryType"]].format(version)
+        if package["identifier"] != expected:
+            raise SystemExit(
+                f"server.json packages[{index}].identifier must be {expected}, "
+                f"got {package['identifier']}"
+            )
     return version
 
 
