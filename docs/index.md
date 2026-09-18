@@ -2,14 +2,16 @@
 
 Markets research for agents, from the team building SolverNet. Research only — no trading, no accounts.
 
-Three read-only tools over Yahoo Finance's public endpoints, no API key:
+Four read-only tools over Yahoo Finance's public endpoints, no API key:
 
 - **`search_markets`** — find ticker symbols and dated headlines for a company, asset, sector,
   or market topic.
-- **`research_asset`** — quote, period return, dated price history, and related news for one
-  symbol.
+- **`research_asset`** — quote, period return, drawdown and volatility, dated price history,
+  and related news for one symbol, over a named period or an exact date window.
 - **`compare_assets`** — align 2–6 symbols on shared observation dates, in local currencies,
   with an explicit adjusted-vs-raw basis.
+- **`market_overview`** — period returns for major indexes, rates, the dollar, gold, oil,
+  BTC, ETH and EURUSD.
 
 ## Pages
 

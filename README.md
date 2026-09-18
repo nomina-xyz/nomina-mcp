@@ -2,14 +2,16 @@
 
 Markets research for agents.
 
-Three read-only tools, no API key, no account, no trading access:
+Four read-only tools, no API key, no account, no trading access:
 
 - **`search_markets`** — find ticker symbols and dated headlines for a company, asset, sector,
   or market topic.
-- **`research_asset`** — quote, period return, dated price history, and related news for one
-  symbol.
+- **`research_asset`** — quote, period return, drawdown and volatility, dated price history,
+  and related news for one symbol, over a named period or an exact date window.
 - **`compare_assets`** — align 2–6 symbols on shared observation dates, in local currencies,
   with an explicit adjusted-vs-raw basis.
+- **`market_overview`** — period returns for major indexes, rates, the dollar, gold, oil,
+  BTC, ETH and EURUSD.
 
 ## Install
 
@@ -44,7 +46,7 @@ Requires [uv](https://docs.astral.sh/uv/).
 ```sh
 uv sync
 uv run python scripts/build_bundle.py   # writes dist/Nomina.mcpb
-uv run pytest -q                        # 8 tests
+uv run pytest -q                        # 14 tests
 uv run ruff check .
 ```
 
