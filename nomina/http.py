@@ -1,5 +1,6 @@
 """Streamable HTTP hosting for the Nomina MCP server."""
 
+import os
 from pathlib import Path
 
 from mcp.server.transport_security import TransportSecuritySettings
@@ -37,6 +38,14 @@ async def healthz(request: Request) -> PlainTextResponse:
     return PlainTextResponse("ok")
 
 
+async def openai_apps_challenge(request: Request) -> PlainTextResponse:
+    """Domain-verification token for OpenAI's plugin directory; the token alone, or 404 if unset."""
+    token = os.environ.get("OPENAI_APPS_CHALLENGE", "").strip()
+    if not token:
+        return PlainTextResponse("not configured", status_code=404)
+    return PlainTextResponse(token)
+
+
 async def icon(request: Request) -> Response:
     return Response(
         _ICON, media_type="image/png", headers={"Cache-Control": "public, max-age=86400"}
@@ -62,6 +71,7 @@ def build_app(hosts: list[str]) -> Starlette:
     )
     app.add_route("/", index, methods=["GET"])
     app.add_route("/healthz", healthz, methods=["GET"])
+    app.add_route("/.well-known/openai-apps-challenge", openai_apps_challenge, methods=["GET"])
     app.add_route("/favicon.ico", icon, methods=["GET"])
     app.add_route("/icon.png", icon, methods=["GET"])
     return app

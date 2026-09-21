@@ -76,7 +76,7 @@ liveness probe at `/healthz`, with no per-session state, so it can run behind an
 balancer:
 
 ```sh
-docker run --rm -p 8000:8000 ghcr.io/nomina-xyz/nomina-mcp:2.0.5
+docker run --rm -p 8000:8000 ghcr.io/nomina-xyz/nomina-mcp:2.0.6
 ```
 
 Then point a Streamable HTTP client at `http://localhost:8000/mcp`. For Claude Code:

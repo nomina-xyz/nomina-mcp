@@ -24,6 +24,7 @@ Bureau of Labor Statistics series, SEC EDGAR filings, GDELT headlines.
 - [Hosting](deploy/) — the Render deployment; Fly.io and Cloud Run alternatives.
 - [Tools](tools/) — symbols, parameters, constraints, response keys, and what the tools are not.
 - [Privacy policy](privacy/) — what is sent, what is stored (nothing), third parties.
+- [Terms of use](terms/) — what the service is and is not, acceptable use, disclaimers.
 - [Data sources and limits](data-sources/) — each source's terms, methodology limits, branding.
 - [Changelog](announcements/) — release notes, one file per version.
 

@@ -45,7 +45,7 @@ release with MCPB v0.4 UV-runtime support and internet access on first install.
 }
 ```
 
-**Self-hosted (Streamable HTTP):** `docker run --rm -p 8000:8000 ghcr.io/nomina-xyz/nomina-mcp:2.0.5`,
+**Self-hosted (Streamable HTTP):** `docker run --rm -p 8000:8000 ghcr.io/nomina-xyz/nomina-mcp:2.0.6`,
 then connect to `http://localhost:8000/mcp`. Details in the docs below.
 
 ## Docs
@@ -56,7 +56,7 @@ https://nomina-xyz.github.io/nomina-mcp/ — see especially
 
 ## Privacy Policy
 
-Full policy: https://nomina-xyz.github.io/nomina-mcp/privacy/
+Full policy: https://nomina-xyz.github.io/nomina-mcp/privacy/ · Terms of use: https://nomina-xyz.github.io/nomina-mcp/terms/
 
 - **Collection:** when a tool runs, only its inputs — search terms, symbols, tickers, and the
   requested period or date window — are sent to the public sources that answer it: Ethereum

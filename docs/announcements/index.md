@@ -2,6 +2,7 @@
 
 One page per release; each doubles as that release's GitHub release notes.
 
+- [v2.0.6](v2.0.6/) — terms of use page; OpenAI domain-verification endpoint.
 - [v2.0.5](v2.0.5/) — multiple public hostnames; landing page at `/`.
 - [v2.0.4](v2.0.4/) — icon served at `/favicon.ico` and `/icon.png`.
 - [v2.0.3](v2.0.3/) — `annotations.title` on every tool.
