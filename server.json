@@ -3,7 +3,7 @@
   "name": "io.github.nomina-xyz/nomina-mcp",
   "title": "Nomina",
   "description": "Read-only markets research for agents: ticker search, price history, date windows, comparisons.",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "repository": {
     "url": "https://github.com/nomina-xyz/nomina-mcp",
     "source": "github"
@@ -18,8 +18,8 @@
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/nomina-xyz/nomina-mcp/releases/download/v1.3.0/Nomina.mcpb",
-      "version": "1.3.0",
+      "identifier": "https://github.com/nomina-xyz/nomina-mcp/releases/download/v1.3.1/Nomina.mcpb",
+      "version": "1.3.1",
       "fileSha256": "39085b9e64727961ab6fc2bfed876ddd126b9af6fb1caa5a41ea1e1b2e94dd73",
       "transport": {
         "type": "stdio"
@@ -27,7 +27,7 @@
     },
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/nomina-xyz/nomina-mcp:1.3.0",
+      "identifier": "ghcr.io/nomina-xyz/nomina-mcp:1.3.1",
       "runtimeArguments": [
         {
           "type": "named",
