@@ -135,12 +135,20 @@ mcp = MCPServer(
     lifespan=lifespan,
     log_level="WARNING",
 )
-READ_ONLY = ToolAnnotations(
-    read_only_hint=True, destructive_hint=False, idempotent_hint=True, open_world_hint=True
-)
 
 
-@mcp.tool(title="Search markets catalog", annotations=READ_ONLY)
+def read_only(title: str) -> ToolAnnotations:
+    """Annotations for a read-only tool; `title` is what directories display."""
+    return ToolAnnotations(
+        title=title,
+        read_only_hint=True,
+        destructive_hint=False,
+        idempotent_hint=True,
+        open_world_hint=True,
+    )
+
+
+@mcp.tool(title="Search markets catalog", annotations=read_only("Search markets catalog"))
 async def search_markets(
     query: Query,
     ctx: Context[MarketData],
@@ -160,7 +168,7 @@ async def search_markets(
         raise ToolError(str(exc)) from exc
 
 
-@mcp.tool(title="Research an asset", annotations=READ_ONLY)
+@mcp.tool(title="Research an asset", annotations=read_only("Research an asset"))
 async def research_asset(
     symbol: Symbol,
     ctx: Context[MarketData],
@@ -183,7 +191,7 @@ async def research_asset(
         raise ToolError(str(exc)) from exc
 
 
-@mcp.tool(title="Compare assets", annotations=READ_ONLY)
+@mcp.tool(title="Compare assets", annotations=read_only("Compare assets"))
 async def compare_assets(
     symbols: Annotated[list[Symbol], Field(min_length=2, max_length=6)],
     ctx: Context[MarketData],
@@ -205,7 +213,7 @@ async def compare_assets(
         raise ToolError(str(exc)) from exc
 
 
-@mcp.tool(title="Market overview", annotations=READ_ONLY)
+@mcp.tool(title="Market overview", annotations=read_only("Market overview"))
 async def market_overview(
     ctx: Context[MarketData],
     period: Period = "1mo",
@@ -220,7 +228,7 @@ async def market_overview(
         raise ToolError(str(exc)) from exc
 
 
-@mcp.tool(title="Company fundamentals", annotations=READ_ONLY)
+@mcp.tool(title="Company fundamentals", annotations=read_only("Company fundamentals"))
 async def company_fundamentals(
     ticker: Ticker,
     ctx: Context[MarketData],

@@ -2,6 +2,7 @@
 
 One page per release; each doubles as that release's GitHub release notes.
 
+- [v2.0.3](v2.0.3/) — `annotations.title` on every tool.
 - [v2.0.2](v2.0.2/) — BLS requests share one shape across symbols and windows; daily allowance enforced.
 - [v2.0.1](v2.0.1/) — BLS terms statement in caveats; source basis and obligations stated per source.
 - [v2.0.0](v2.0.0/) — public-data layer: Chainlink on-chain prices, Treasury yields, BLS macro, SEC EDGAR fundamentals, GDELT headlines; `company_fundamentals`; Yahoo Finance removed. Breaking: symbol universe changed.
