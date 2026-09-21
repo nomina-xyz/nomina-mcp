@@ -52,9 +52,12 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-      - name: Confirm the image is publicly pullable
-        # The MCP Registry verifies OCI ownership by fetching the image anonymously, so a
-        # private package (GitHub's default for a new package) would fail registry publishing.
+      - name: Check whether the image is publicly pullable
+        # The MCP Registry verifies OCI ownership by fetching the image anonymously. GitHub
+        # creates new packages private and offers no API to change that, so instead of
+        # stalling the release the registry record is published without the OCI package
+        # until the package is made Public in its GitHub settings.
+        id: image
         run: |
           set -euo pipefail
           tag="$(echo '${{ steps.meta.outputs.tags }}' | head -n1 | cut -d: -f2)"
@@ -64,9 +67,11 @@ jobs:
               -H "Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json" \
               "https://ghcr.io/v2/${{ github.repository }}/manifests/$tag"
           }
-          if ! probe; then
-            echo "::error::ghcr.io/${{ github.repository }}:$tag is not anonymously pullable. Set the package to Public: https://github.com/orgs/${{ github.repository_owner }}/packages/container/nomina-mcp/settings (Danger Zone -> Change visibility), then re-run this workflow."
-            exit 1
+          if probe; then
+            echo "public=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "public=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::ghcr.io/${{ github.repository }}:$tag is not anonymously pullable; publishing the registry record without the OCI package. Make the package Public at https://github.com/orgs/${{ github.repository_owner }}/packages/container/nomina-mcp/settings (Danger Zone -> Change visibility) so future releases include it."
           fi
 
       - name: Attach the bundle to the GitHub release
@@ -78,6 +83,10 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           set -euo pipefail
+          if [ "${{ steps.image.outputs.public }}" != "true" ]; then
+            jq '.packages |= map(select(.registryType != "oci"))' server.json > server.json.tmp && mv server.json.tmp server.json
+          fi
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish
+          git checkout -- server.json
