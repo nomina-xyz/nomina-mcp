@@ -84,7 +84,11 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ steps.image.outputs.public }}" != "true" ]; then
+            # Registry versions are immutable ("cannot publish duplicate version"), so this
+            # version's record will never gain the OCI package; the next release after the
+            # image is public will carry it. The committed server.json is left untouched.
             jq '.packages |= map(select(.registryType != "oci"))' server.json > server.json.tmp && mv server.json.tmp server.json
+            echo "::notice::Registry record for $GITHUB_REF_NAME generated WITHOUT the OCI package (image not public); this differs from the committed server.json and is permanent for this version."
           fi
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
           ./mcp-publisher login github-oidc

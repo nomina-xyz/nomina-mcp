@@ -5,6 +5,9 @@ on any container platform that terminates TLS and can health-check `GET /healthz
 container listens on `PORT` (default 8000) and rejects requests whose `Host` header is not
 `PUBLIC_HOST`, `localhost`, or `127.0.0.1`.
 
+The commands below follow each platform's documentation; no Nomina deployment has been run
+with them yet. `fly.toml` is checked for TOML syntax only.
+
 ## Fly.io
 
 `fly.toml` at the repository root is ready to use:
