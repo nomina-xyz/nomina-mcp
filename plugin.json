@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "nomina",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Read-only markets research from public data: on-chain prices, Treasury yields, macro series, SEC filings, headlines.",
   "author": {
     "name": "Nomina"

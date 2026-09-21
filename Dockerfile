@@ -2,7 +2,7 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 WORKDIR /app
 COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --frozen --no-dev --no-install-project
-COPY server.py ./
+COPY server.py icon.png ./
 COPY nomina ./nomina
 ENV PORT=8000
 EXPOSE 8000
