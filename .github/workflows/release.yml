@@ -94,3 +94,10 @@ jobs:
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish
           git checkout -- server.json
+      - name: Redeploy the hosted endpoint (Render)
+        # The Render service builds from the public repo without the GitHub app, so it has no
+        # push-triggered deploys; the deploy hook rebuilds it from main after each release.
+        if: startsWith(github.ref, 'refs/tags/') && env.RENDER_DEPLOY_HOOK != ''
+        env:
+          RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: curl -fsS -X POST "$RENDER_DEPLOY_HOOK" -o /dev/null && echo "Render deploy triggered"

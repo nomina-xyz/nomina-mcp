@@ -5,8 +5,17 @@ on any container platform that terminates TLS and can health-check `GET /healthz
 container listens on `PORT` (default 8000) and rejects requests whose `Host` header is not
 `PUBLIC_HOST`, `localhost`, or `127.0.0.1`.
 
-The commands below follow each platform's documentation; no Nomina deployment has been run
-with them yet. `fly.toml` is checked for TOML syntax only.
+## Current deployment (Render)
+
+`render.yaml` at the repository root is deployed as a Render Blueprint from the public
+repository: service `nomina-mcp`, Docker runtime, free plan, health check `/healthz`, public
+host taken from Render's `RENDER_EXTERNAL_HOSTNAME`. Live at
+`https://nomina-mcp.onrender.com/mcp`. The release workflow triggers a redeploy through a
+Render deploy hook after each tagged release. Free instances sleep after 15 idle minutes and
+wake in about a minute; a paid instance removes that. There is no edge rate limiting yet.
+
+The Fly.io and Cloud Run commands below follow each platform's documentation and have not
+been run for Nomina; `fly.toml` is checked for TOML syntax only.
 
 ## Fly.io
 

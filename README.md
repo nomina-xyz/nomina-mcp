@@ -15,6 +15,11 @@ Four read-only tools, no API key, no account, no trading access:
 
 ## Install
 
+**Hosted (no install):** add `https://nomina-mcp.onrender.com/mcp` as a custom connector in
+Claude (Settings → Connectors → Add custom connector), or
+`claude mcp add --transport http nomina https://nomina-mcp.onrender.com/mcp`. First request
+after an idle period can take about a minute.
+
 **Claude Desktop:** Settings → Extensions → Advanced settings → Extension Developer →
 Install Extension… → select `Nomina.mcpb` from a
 [release](https://github.com/nomina-xyz/nomina-mcp/releases) (or build it yourself, see below). Requires a Claude Desktop

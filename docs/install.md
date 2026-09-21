@@ -4,6 +4,22 @@ Nomina is a stdio MCP server that can also serve Streamable HTTP. Every surface 
 launches the same `server.py` with [uv](https://docs.astral.sh/uv/); nothing needs an API
 key, account, or environment variable.
 
+## Hosted endpoint (no install)
+
+Nomina runs as a public Streamable HTTP server at:
+
+```
+https://nomina-mcp.onrender.com/mcp
+```
+
+- **Claude (web, desktop, mobile):** Settings → Connectors → *Add custom connector* → name
+  `Nomina`, URL `https://nomina-mcp.onrender.com/mcp`. No authentication is required.
+- **Claude Code:** `claude mcp add --transport http nomina https://nomina-mcp.onrender.com/mcp`
+- Any other Streamable HTTP client: the same URL. `GET /healthz` returns `ok`.
+
+It runs on a free instance that sleeps after 15 idle minutes; the first request after a pause
+can take about a minute. Nothing is stored server-side (see the [privacy policy](../privacy/)).
+
 ## Claude Desktop
 
 Settings → Extensions → Advanced settings → Extension Developer → Install Extension… →
