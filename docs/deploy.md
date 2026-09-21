@@ -10,7 +10,9 @@ container listens on `PORT` (default 8000) and rejects requests whose `Host` hea
 `render.yaml` at the repository root is deployed as a Render Blueprint from the public
 repository: service `nomina-mcp`, Docker runtime, free plan, health check `/healthz`, public
 host taken from Render's `RENDER_EXTERNAL_HOSTNAME`. Live at
-`https://nomina-mcp.onrender.com/mcp`. The release workflow triggers a redeploy through a
+`https://mcp.nomina.io/mcp` (custom domain: a DNS-only CNAME `mcp` → `nomina-mcp.onrender.com` in
+Nomina's Cloudflare zone, TLS issued by Render; `https://nomina-mcp.onrender.com/mcp` stays as an
+alias). The release workflow triggers a redeploy through a
 Render deploy hook after each tagged release. Free instances sleep after 15 idle minutes and
 wake in about a minute; a paid instance removes that. There is no edge rate limiting yet.
 

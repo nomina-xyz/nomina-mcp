@@ -4,7 +4,7 @@ This policy covers the Nomina MCP server published at
 <https://github.com/nomina-xyz/nomina-mcp>, in every distribution form: the Claude Desktop
 extension (`Nomina.mcpb`), the stdio server launched from a clone, the Gemini CLI extension,
 the Agent Plugins manifest, the container image, and the hosted endpoint
-`https://nomina-mcp.onrender.com/mcp`.
+`https://mcp.nomina.io/mcp` (also reachable as `https://nomina-mcp.onrender.com/mcp`).
 
 ## Data sent
 

@@ -29,7 +29,7 @@ Bureau of Labor Statistics series, SEC EDGAR filings, GDELT headlines.
 
 ## Where it is listed
 
-- Hosted endpoint: `https://nomina-mcp.onrender.com/mcp`
+- Hosted endpoint: `https://mcp.nomina.io/mcp`
 - MCP Registry: `io.github.nomina-xyz/nomina-mcp`
 - Releases: <https://github.com/nomina-xyz/nomina-mcp/releases>
 - Source: <https://github.com/nomina-xyz/nomina-mcp>

@@ -22,9 +22,9 @@ state, and openly released news records, each source's obligations documented an
 
 ## Install
 
-**Hosted (no install):** add `https://nomina-mcp.onrender.com/mcp` as a custom connector in
+**Hosted (no install):** add `https://mcp.nomina.io/mcp` as a custom connector in
 Claude (Settings → Connectors → Add custom connector), or
-`claude mcp add --transport http nomina https://nomina-mcp.onrender.com/mcp`. First request
+`claude mcp add --transport http nomina https://mcp.nomina.io/mcp`. First request
 after an idle period can take about a minute.
 
 **Claude Desktop:** Settings → Extensions → Advanced settings → Extension Developer →

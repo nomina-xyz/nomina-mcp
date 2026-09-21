@@ -9,12 +9,13 @@ key, account, or environment variable.
 Nomina runs as a public Streamable HTTP server at:
 
 ```
-https://nomina-mcp.onrender.com/mcp
+https://mcp.nomina.io/mcp
 ```
 
 - **Claude (web, desktop, mobile):** Settings → Connectors → *Add custom connector* → name
-  `Nomina`, URL `https://nomina-mcp.onrender.com/mcp`. No authentication is required.
-- **Claude Code:** `claude mcp add --transport http nomina https://nomina-mcp.onrender.com/mcp`
+  `Nomina`, URL `https://mcp.nomina.io/mcp`. No authentication is required.
+- **Claude Code:** `claude mcp add --transport http nomina https://mcp.nomina.io/mcp`
+- The server also answers at `https://nomina-mcp.onrender.com/mcp` (the hosting platform's hostname); both are the same deployment.
 - Any other Streamable HTTP client: the same URL. `GET /healthz` returns `ok`.
 
 It runs on a free instance that sleeps after 15 idle minutes; the first request after a pause
