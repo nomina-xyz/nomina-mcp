@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import Any, Literal
@@ -94,7 +95,9 @@ class Fetcher:
         headers: dict[str, str] | None = None,
         as_text: bool = False,
         timeout: float | None = None,
+        before_send: Callable[[], None] | None = None,
     ) -> Any:
+        """Fetch with caching and coalescing; `before_send` runs once per real network request."""
         key = f"{method} {httpx.URL(url, params=params)} {json_body!r}"
         cached = self._get_cached(key)
         if cached is not None:
@@ -105,6 +108,8 @@ class Fetcher:
         future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
         self._inflight[key] = future
         try:
+            if before_send is not None:
+                before_send()
             payload = await self._fetch(
                 method,
                 url,

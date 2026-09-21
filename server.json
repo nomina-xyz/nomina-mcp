@@ -3,7 +3,7 @@
   "name": "io.github.nomina-xyz/nomina-mcp",
   "title": "Nomina",
   "description": "Read-only markets research from public data: on-chain prices, Treasury yields, macro, SEC filings.",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "repository": {
     "url": "https://github.com/nomina-xyz/nomina-mcp",
     "source": "github"
@@ -18,8 +18,8 @@
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/nomina-xyz/nomina-mcp/releases/download/v2.0.1/Nomina.mcpb",
-      "version": "2.0.1",
+      "identifier": "https://github.com/nomina-xyz/nomina-mcp/releases/download/v2.0.2/Nomina.mcpb",
+      "version": "2.0.2",
       "fileSha256": "f5fba0618105d173e0f4943b1410bc458062d6460ce2350fc6a9ee7831a74923",
       "transport": {
         "type": "stdio"
@@ -27,7 +27,7 @@
     },
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/nomina-xyz/nomina-mcp:2.0.1",
+      "identifier": "ghcr.io/nomina-xyz/nomina-mcp:2.0.2",
       "runtimeArguments": [
         {
           "type": "named",

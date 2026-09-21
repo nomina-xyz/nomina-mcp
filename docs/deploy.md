@@ -49,7 +49,8 @@ gcloud run domain-mappings create --service nomina-mcp --domain mcp.example.com
   minute per IP). The built-in response cache absorbs repeated identical requests but
   is not an abuse control.
 - **Source quotas.** Hosting concentrates every user's requests on one egress address: BLS
-  allows 25 requests per day per IP (Nomina caches for six hours), SEC asks for at most 10
+  allows 25 requests per day per IP (Nomina shares one request shape across all symbols and
+  windows and stops at 25 a day), SEC asks for at most 10
   requests per second with an identifying `User-Agent`, GDELT allows one request per five
   seconds, and the public RPC gateways rate-limit bursts (Nomina paces and rotates between
   them). See [Data sources and limits](data-sources/) before operating at scale.

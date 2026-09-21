@@ -7,6 +7,7 @@ import httpx
 import pytest
 
 from nomina.market import OVERVIEW_SYMBOLS, MarketData, MarketDataError
+from nomina.sources import bls
 from nomina.sources import chainlink as cl
 
 PHASE = 3
@@ -459,3 +460,45 @@ async def test_resolved_rounds_are_reused_across_calls():
         )
     assert rpc_calls_first >= 2
     assert rpc_calls_second == 1  # only the latest-round lookup repeats
+
+
+def bls_payload(series: dict[str, list[float]]) -> dict:
+    """One BLS v1 response holding the last len(values) months of each series, newest first."""
+    today = datetime.now(UTC).date()
+    out = []
+    for series_id, values in series.items():
+        data, year, month = [], today.year, today.month
+        for value in values:
+            data.append({"year": str(year), "period": f"M{month:02d}", "value": str(value)})
+            year, month = (year, month - 1) if month > 1 else (year - 1, 12)
+        out.append({"seriesID": series_id, "data": data})
+    return {"status": "REQUEST_SUCCEEDED", "Results": {"series": out}}
+
+
+@pytest.mark.anyio
+async def test_bls_symbols_and_windows_share_one_request_and_keep_their_own_values():
+    requests = []
+    payload = bls_payload({"CUSR0000SA0": [334.9, 334.1, 333.0], "LNS14000000": [4.3, 4.2, 4.1]})
+    async with provider(bls=payload, requests=requests) as client:
+        data = MarketData(client)
+        cpi = await data.research("CPI", "1y")
+        unrate = await data.research("UNRATE", "3mo")
+        overview = await data.overview("6mo")
+    assert sum(1 for r in requests if r.url.host == "api.bls.gov") == 1
+    assert [p["value"] for p in cpi["history"]] == [333.0, 334.1, 334.9]
+    assert [p["value"] for p in unrate["history"]] == [4.1, 4.2, 4.3]
+    assert all(bls.TERMS_STATEMENT in report["caveats"] for report in (cpi, unrate, overview))
+
+
+@pytest.mark.anyio
+async def test_bls_daily_allowance_is_refused_before_it_is_exceeded(monkeypatch):
+    monkeypatch.setattr(bls, "_DAILY_LIMIT", 1)
+    requests = []
+    end = datetime.now(UTC).date()
+    start = end - timedelta(days=11 * 365)  # spans two ten-year blocks
+    async with provider(
+        bls=bls_payload({"CUSR0000SA0": [300.0, 299.0]}), requests=requests
+    ) as client:
+        with pytest.raises(MarketDataError, match="allowance"):
+            await MarketData(client).research("CPI", start=start, end=end)
+    assert sum(1 for r in requests if r.url.host == "api.bls.gov") == 1
