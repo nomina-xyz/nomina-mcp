@@ -9,5 +9,9 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /healthz
     autoDeploy: true
-    # PUBLIC_HOST defaults to Render's RENDER_EXTERNAL_HOSTNAME inside the container; set it
-    # explicitly here once a custom domain (e.g. mcp.nomina.io) is attached.
+    # Render's RENDER_EXTERNAL_HOSTNAME is always accepted; PUBLIC_HOST adds custom domains
+    # (comma-separated). Attach the domain in Render (Settings -> Custom Domains) and point a
+    # CNAME at nomina-mcp.onrender.com.
+    envVars:
+      - key: PUBLIC_HOST
+        value: mcp.nomina.io

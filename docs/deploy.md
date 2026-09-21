@@ -3,7 +3,7 @@
 Nomina's Streamable HTTP mode is stateless, keeps no data, and needs no secrets, so it runs
 on any container platform that terminates TLS and can health-check `GET /healthz`. The
 container listens on `PORT` (default 8000) and rejects requests whose `Host` header is not
-`PUBLIC_HOST`, `localhost`, or `127.0.0.1`.
+`PUBLIC_HOST` (comma-separated for several hostnames), the platform's `RENDER_EXTERNAL_HOSTNAME`, `localhost`, or `127.0.0.1`. `GET /` serves a small landing page and `GET /icon.png` / `/favicon.ico` the icon.
 
 ## Current deployment (Render)
 

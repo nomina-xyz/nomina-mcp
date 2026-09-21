@@ -276,10 +276,10 @@ def main() -> None:
     )
     parser.add_argument(
         "--public-host",
-        default=os.environ.get("PUBLIC_HOST") or os.environ.get("RENDER_EXTERNAL_HOSTNAME") or None,
-        help="Hostname clients use to reach the server, e.g. mcp.example.com (default: "
-        "$PUBLIC_HOST, then the platform's $RENDER_EXTERNAL_HOSTNAME, else --host). "
-        "Requests with another Host header are rejected.",
+        default=os.environ.get("PUBLIC_HOST") or None,
+        help="Hostname(s) clients use to reach the server, comma-separated, e.g. "
+        "mcp.example.com (default: $PUBLIC_HOST). The platform's $RENDER_EXTERNAL_HOSTNAME "
+        "is always allowed too; requests with any other Host header are rejected.",
     )
     args = parser.parse_args()
     if args.transport == "stdio":
@@ -290,8 +290,12 @@ def main() -> None:
 
     from nomina.http import build_app
 
+    hosts = [h.strip() for h in (args.public_host or "").split(",") if h.strip()]
+    platform_host = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
+    if platform_host and platform_host not in hosts:
+        hosts.append(platform_host)
     uvicorn.run(
-        build_app(args.public_host or args.host),
+        build_app(hosts or [args.host]),
         host=args.host,
         port=args.port,
         log_level="warning",
