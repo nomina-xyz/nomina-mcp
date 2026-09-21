@@ -47,6 +47,23 @@ Install guides, tool reference, privacy policy, and data-source limits:
 https://nomina-xyz.github.io/nomina-mcp/ — see especially
 [Data sources and limits](https://nomina-xyz.github.io/nomina-mcp/data-sources/).
 
+## Privacy Policy
+
+Full policy: https://nomina-xyz.github.io/nomina-mcp/privacy/
+
+- **Collection:** when a tool runs, only its inputs — search terms, symbols, and the requested
+  period or date window — are sent to Yahoo Finance's public endpoints
+  (`query1.finance.yahoo.com`). Nothing else leaves the process.
+- **Usage and storage:** Nomina stores nothing. No accounts, no logs of requests or their
+  contents, no telemetry. Provider responses are held in memory for up to 60 seconds to avoid
+  repeat requests; nothing is written to disk.
+- **Third parties:** Yahoo Finance processes those requests under its own policy
+  (https://legal.yahoo.com/us/en/yahoo/privacy/index.html). Your MCP host handles the
+  conversation under its own policy. Operators of a hosted instance may keep infrastructure
+  connection logs; Nomina adds none.
+- **Retention:** none beyond the 60-second in-memory cache of the running process.
+- **Contact:** https://github.com/nomina-xyz/nomina-mcp/issues
+
 ## Build from source
 
 Requires [uv](https://docs.astral.sh/uv/).
