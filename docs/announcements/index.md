@@ -2,7 +2,8 @@
 
 One page per release; each doubles as that release's GitHub release notes.
 
-- [v2.0.0](v2.0.0/) — license-free data layer: Chainlink on-chain prices, Treasury yields, BLS macro, SEC EDGAR fundamentals, GDELT headlines; `company_fundamentals`; Yahoo Finance removed. Breaking: symbol universe changed.
+- [v2.0.1](v2.0.1/) — BLS terms statement in caveats; source basis and obligations stated per source.
+- [v2.0.0](v2.0.0/) — public-data layer: Chainlink on-chain prices, Treasury yields, BLS macro, SEC EDGAR fundamentals, GDELT headlines; `company_fundamentals`; Yahoo Finance removed. Breaking: symbol universe changed.
 - [v1.3.3](v1.3.3/) — container image added to the MCP Registry record.
 - [v1.3.2](v1.3.2/) — factual store description; no other changes.
 - [v1.3.1](v1.3.1/) — complete manifest metadata (repository, docs, support, license); bundle ships `nomina/http.py`.

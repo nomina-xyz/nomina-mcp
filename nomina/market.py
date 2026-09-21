@@ -1,10 +1,11 @@
-"""Research orchestration over license-free sources: on-chain oracle prices and public statistics."""
+"""Research orchestration over public sources: on-chain oracle prices and public statistics."""
 
 from __future__ import annotations
 
 import asyncio
 import math
 import statistics
+from collections.abc import Iterable
 from datetime import UTC, date, datetime, timedelta
 from itertools import pairwise
 from typing import Any, Literal
@@ -47,6 +48,15 @@ _LATEST_CAVEAT = (
     "The most recent observation can be a partial day; on-chain feeds update on heartbeat or "
     "deviation, so a day's close is its last update before midnight UTC."
 )
+
+
+def _source_terms(loaded: Iterable[Series]) -> list[str]:
+    """Statements a source's terms require wherever its data are shown."""
+    if any(series.instrument.source == bls.SOURCE_NAME for series in loaded):
+        return [bls.TERMS_STATEMENT]
+    return []
+
+
 _PERIODS_PER_YEAR = {"1d": 252, "1wk": 52, "1mo": 12}
 
 __all__ = ["OVERVIEW_SYMBOLS", "MarketData", "MarketDataError", "Period"]
@@ -161,6 +171,7 @@ class MarketData:
                 notes.append(
                     "Monthly series: the window was widened to include the latest two releases."
                 )
+            notes.append(bls.TERMS_STATEMENT)
             interval = "1mo"
             source_url = instrument.url
             latest_value = points[-1].value if points else None
@@ -505,7 +516,8 @@ class MarketData:
                 _LATEST_CAVEAT,
                 "Shared dates are UTC calendar dates of the observations.",
             ]
-            + ([_WINDOW_CAVEAT] if window else []),
+            + ([_WINDOW_CAVEAT] if window else [])
+            + _source_terms(loaded.values()),
         }
 
     async def overview(self, period: Period = "1mo") -> dict[str, Any]:
@@ -551,7 +563,8 @@ class MarketData:
                 _LATEST_CAVEAT,
                 "Yields and rates change in percentage points; prices change in percent.",
                 "Basket membership is fixed by Nomina, not a provider index.",
-            ],
+            ]
+            + _source_terms(r for r in results if isinstance(r, Series)),
         }
 
     async def fundamentals(self, ticker: str) -> dict[str, Any]:

@@ -1,6 +1,6 @@
 # Nomina
 
-Markets research for agents from public and open-licensed data.
+Markets research for agents from public data.
 
 Five read-only tools, no API key, no account, no trading access:
 
@@ -16,8 +16,9 @@ Five read-only tools, no API key, no account, no trading access:
 
 Data: Chainlink price feeds read from the Ethereum blockchain (crypto, FX, gold and silver, a
 few US equities/ETFs), the US Treasury yield curve, Bureau of Labor Statistics series, SEC
-EDGAR filings, and GDELT headlines. Every source is public-domain or licensed for display
-and redistribution; see [Data sources and limits](https://nomina-xyz.github.io/nomina-mcp/data-sources/).
+EDGAR filings, and GDELT headlines: public-domain government statistics, public blockchain
+state, and openly released news records, each source's obligations documented and met in
+[Data sources and limits](https://nomina-xyz.github.io/nomina-mcp/data-sources/).
 
 ## Install
 
@@ -44,7 +45,7 @@ release with MCPB v0.4 UV-runtime support and internet access on first install.
 }
 ```
 
-**Self-hosted (Streamable HTTP):** `docker run --rm -p 8000:8000 ghcr.io/nomina-xyz/nomina-mcp:2.0.0`,
+**Self-hosted (Streamable HTTP):** `docker run --rm -p 8000:8000 ghcr.io/nomina-xyz/nomina-mcp:2.0.1`,
 then connect to `http://localhost:8000/mcp`. Details in the docs below.
 
 ## Docs

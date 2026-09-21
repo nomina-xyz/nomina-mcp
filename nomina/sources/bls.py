@@ -2,6 +2,9 @@
 
 v1 allows 25 requests per day per IP and ten years per request, so results are cached for six
 hours and every series in one request. Values are monthly.
+
+BLS's API terms of service require users to cite the retrieval date and to state the
+disclaimer in TERMS_STATEMENT wherever the data are shown.
 """
 
 from __future__ import annotations
@@ -11,6 +14,11 @@ from datetime import date
 from nomina.sources.common import Fetcher, Instrument, MarketDataError, Point
 
 API_URL = "https://api.bls.gov/publicAPI/v1/timeseries/data/"
+SOURCE_NAME = "US Bureau of Labor Statistics"
+TERMS_STATEMENT = (
+    "BLS.gov cannot vouch for the data or analyses derived from these data after the data "
+    "have been retrieved from BLS.gov."
+)
 SERIES_PAGE = "https://data.bls.gov/timeseries/{series_id}"
 # Nomina symbol -> (BLS series id, name, unit, measure)
 SERIES: dict[str, tuple[str, str, str, str]] = {
@@ -45,7 +53,7 @@ def instrument(symbol: str) -> Instrument:
         kind="macro",
         unit=unit,
         measure=measure,  # type: ignore[arg-type]
-        source="US Bureau of Labor Statistics",
+        source=SOURCE_NAME,
         url=SERIES_PAGE.format(series_id=series_id),
         frequency="monthly",
     )

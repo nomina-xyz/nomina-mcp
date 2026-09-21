@@ -1,6 +1,6 @@
 # Nomina MCP
 
-Markets research for agents from public and open-licensed data. Research only — no trading,
+Markets research for agents from public data. Research only — no trading,
 no accounts, no API keys.
 
 Five read-only tools:

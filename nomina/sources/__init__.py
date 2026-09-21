@@ -1,1 +1,1 @@
-"""Keyless, license-free data sources: public ledgers and public-domain statistics."""
+"""Keyless public data sources: public ledgers, public-domain statistics, open news records."""

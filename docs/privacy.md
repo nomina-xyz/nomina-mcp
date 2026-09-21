@@ -18,7 +18,7 @@ below:
 - the ticker you submit to `company_fundamentals` (to SEC EDGAR);
 - the requested history period or date window.
 
-Nothing else is sent anywhere. Each source receives ordinary connection metadata for those
+Nomina sends nothing else to any source. Each source receives ordinary connection metadata for those
 requests, such as your IP address and Nomina's `User-Agent` header. SEC's fair-access policy
 requires an identifying `User-Agent`; Nomina sends `Nomina MCP` with the maintainer's contact
 address, never anything about you.

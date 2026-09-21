@@ -31,7 +31,7 @@ Ticker = Annotated[
 StartDate = Annotated[date | None, Field(description="ISO date, inclusive; requires end.")]
 EndDate = Annotated[date | None, Field(description="ISO date, inclusive; requires start.")]
 
-INSTRUCTIONS = """Nomina is a read-only markets research assistant over public and open-licensed data:
+INSTRUCTIONS = """Nomina is a read-only markets research assistant over public data:
 Chainlink price feeds read from the Ethereum blockchain (crypto, FX, gold/silver, a few US
 equities and ETFs such as SPY, QQQ, NVDA, TSLA), US Treasury yields (US2Y, US10Y ...), BLS
 macro series (CPI, UNRATE, PAYEMS, AHE), SEC EDGAR filings, and GDELT headlines.
@@ -53,31 +53,31 @@ SOURCE_GUIDE = {
         {
             "name": "Chainlink Data Feeds on Ethereum mainnet",
             "coverage": "Crypto, FX, gold and silver, and a small set of US equities/ETFs (SPY, QQQ, NVDA, TSLA, GOOGL) as on-chain oracle prices; history reconstructed from on-chain rounds.",
-            "access": "Public blockchain state read through public JSON-RPC gateways, no key. Chainlink's Terms of Service grant a licence to access and use the feeds through their public interfaces for their intended use and impose no display or redistribution restriction beyond compliance with applicable open-source licences (https://chain.link/terms).",
+            "access": "Feed values are public Ethereum state, read through free public JSON-RPC gateways (PublicNode, MEV Blocker) with paced, rate-limit-aware requests; no key. Only the feed directory is a Chainlink-operated interface, used under Chainlink's Terms of Service (https://chain.link/terms).",
             "url": "https://data.chain.link/feeds/ethereum/mainnet",
         },
         {
             "name": "US Department of the Treasury",
             "coverage": "Daily par yield curve rates (1 month to 30 years).",
-            "access": "Public domain, no key.",
+            "access": "US government work, public domain (17 U.S.C. 105); no key.",
             "url": "https://home.treasury.gov/resource-center/data-chart-center/interest-rates",
         },
         {
             "name": "US Bureau of Labor Statistics",
             "coverage": "CPI-U, unemployment rate, nonfarm payrolls, average hourly earnings (monthly).",
-            "access": "Public domain, public API v1, no key.",
+            "access": "US government work, public domain; public API v1 (25 requests per day, no key). BLS's terms require citing the retrieval date and stating: BLS.gov cannot vouch for the data or analyses derived from these data after the data have been retrieved from BLS.gov (https://www.bls.gov/developers/termsOfService.htm).",
             "url": "https://www.bls.gov/developers/",
         },
         {
             "name": "SEC EDGAR",
             "coverage": "Company tickers, XBRL company facts (financial statements) and filings.",
-            "access": "Public domain, fair-access policy, no key.",
+            "access": "US government work, public domain; fair-access policy requires an identifying User-Agent and at most 10 requests per second; no key.",
             "url": "https://www.sec.gov/search-filings/edgar-application-programming-interfaces",
         },
         {
             "name": "The GDELT Project",
             "coverage": "News article records (title, link, date) via the DOC 2.0 API.",
-            "access": "Open for commercial use with citation; one request per five seconds.",
+            "access": "Released for unlimited and unrestricted academic, commercial or governmental use with citation; one request per five seconds.",
             "url": "https://www.gdeltproject.org/",
         },
     ],
@@ -98,8 +98,9 @@ SOURCE_GUIDE = {
     "privacy_policy": "https://nomina-xyz.github.io/nomina-mcp/privacy/",
     "documentation": "https://nomina-xyz.github.io/nomina-mcp/",
     "citations": [
-        "Chainlink Data Feeds (public blockchain data).",
-        "U.S. Department of the Treasury; U.S. Bureau of Labor Statistics; U.S. Securities and Exchange Commission (public domain).",
+        "Chainlink Data Feeds (public Ethereum state).",
+        "U.S. Department of the Treasury; U.S. Securities and Exchange Commission (public domain).",
+        "U.S. Bureau of Labor Statistics, retrieved at the reported retrieved_at; BLS.gov cannot vouch for the data or analyses derived from these data after the data have been retrieved from BLS.gov.",
         "The GDELT Project (https://www.gdeltproject.org/).",
     ],
 }
