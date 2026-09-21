@@ -75,7 +75,7 @@ liveness probe at `/healthz`, with no per-session state, so it can run behind an
 balancer:
 
 ```sh
-docker run --rm -p 8000:8000 ghcr.io/nomina-xyz/nomina-mcp:1.3.3
+docker run --rm -p 8000:8000 ghcr.io/nomina-xyz/nomina-mcp:2.0.0
 ```
 
 Then point a Streamable HTTP client at `http://localhost:8000/mcp`. For Claude Code:
@@ -103,4 +103,4 @@ uv run --frozen --no-dev server.py --transport streamable-http --port 8000
 
 An AI agent installing Nomina on a user's behalf should follow
 [`llms-install.md`](https://github.com/nomina-xyz/nomina-mcp/blob/main/llms-install.md),
-which includes a stdio handshake to confirm the four tools are exposed.
+which includes a stdio handshake to confirm the five tools are exposed.

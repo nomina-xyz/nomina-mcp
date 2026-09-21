@@ -22,6 +22,13 @@ BUNDLE_FILES = (
     "nomina/server.py",
     "nomina/market.py",
     "nomina/http.py",
+    "nomina/sources/__init__.py",
+    "nomina/sources/common.py",
+    "nomina/sources/chainlink.py",
+    "nomina/sources/treasury.py",
+    "nomina/sources/bls.py",
+    "nomina/sources/edgar.py",
+    "nomina/sources/gdelt.py",
     "icon.png",
 )
 _PACKAGE_IDENTIFIERS = {
@@ -38,7 +45,7 @@ def check_bundle_files() -> None:
     """Exit if a module under nomina/ would be left out of the bundle."""
     missing = sorted(
         str(path.relative_to(ROOT))
-        for path in (ROOT / "nomina").glob("*.py")
+        for path in (ROOT / "nomina").rglob("*.py")
         if str(path.relative_to(ROOT)) not in BUNDLE_FILES
     )
     if missing:

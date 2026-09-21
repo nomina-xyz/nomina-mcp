@@ -43,8 +43,8 @@ secrets.
 
 ## Verify
 
-Restart the client and confirm four tools are exposed: `search_markets`,
-`research_asset`, `compare_assets`, and `market_overview`. A direct check without a client:
+Restart the client and confirm five tools are exposed: `search_markets`,
+`research_asset`, `compare_assets`, `market_overview`, and `company_fundamentals`. A direct check without a client:
 
 ```sh
 printf '%s\n' \
@@ -54,7 +54,7 @@ printf '%s\n' \
   | uv run --frozen --no-dev --directory /absolute/path/to/nomina-mcp server.py
 ```
 
-The `tools/list` response must list all four tool names. `tools/list` sent before the
+The `tools/list` response must list all five tool names. `tools/list` sent before the
 `notifications/initialized` line returns nothing useful, so keep the order above.
 
 A first run downloads the interpreter and dependencies and may take a minute; later
@@ -66,6 +66,6 @@ starts are fast.
   client. Use the absolute path to the `uv` binary (`which uv`) as `command`.
 - `No such file or directory` — `--directory` must be the absolute path to the clone
   root, the directory holding `server.py` and `pyproject.toml`.
-- Tool calls return explicit upstream errors — expected when Yahoo Finance's public
-  endpoints throttle or omit data. The server surfaces the error rather than inventing
-  values. See https://nomina-xyz.github.io/nomina-mcp/data-sources/.
+- Tool calls return explicit upstream errors — expected when a public source (Ethereum RPC
+  gateways, GDELT, SEC EDGAR) throttles or omits data. The server surfaces the error rather
+  than inventing values. See https://nomina-xyz.github.io/nomina-mcp/data-sources/.

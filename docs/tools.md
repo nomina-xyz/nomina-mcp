@@ -1,104 +1,101 @@
 # Tools
 
-All four tools are read-only, idempotent, and non-destructive; they reach Yahoo Finance's
-public endpoints and nothing else. Every response carries `retrieved_at`, `sources` with
-provider timestamps, and `caveats` that name the limits of what was returned. Identical
-provider requests within 60 seconds are served from a short in-process cache; `retrieved_at`
-is still the time of the call.
+All five tools are read-only, idempotent, and non-destructive. They reach only the public
+sources listed on [Data sources and limits](../data-sources/). Every response carries
+`retrieved_at`, `sources` with observation timestamps, and `caveats` naming the limits of what
+was returned. Identical upstream requests are served from a short in-process cache; on-chain
+rounds, once resolved, are cached for the life of the process.
 
-Common parameter types:
+## Symbols
 
-- **Query** — text, 1–200 characters after trimming whitespace.
-- **Symbol** — a Yahoo Finance symbol, 1–32 characters matching `^[A-Za-z0-9^=._-]+$`
-  (for example `AAPL`, `^GSPC`, `BTC-USD`, `EURUSD=X`, `GC=F`). Symbols are upper-cased.
-- **period** — one of `1mo`, `3mo`, `6mo`, `1y`, `5y`, `ytd`; default `3mo`. Daily bars,
-  or weekly bars for `5y`.
-- **start / end** — ISO dates (`YYYY-MM-DD`), both inclusive, always given together. They
-  replace `period` with an exact window: `end` must be after `start`, not in the future,
-  and at most 25 years later. Windows up to two years use daily bars, longer ones weekly.
-  The response reports `period` as `start..end`.
+| Class | Examples | Source | Frequency |
+|---|---|---|---|
+| Crypto | `BTC/USD`, `ETH/USD`, `SOL/USD`, `LINK/USD` (also `BTC`, `btc-usd`, `BTCUSD`) | Chainlink feed on Ethereum | daily (weekly beyond 2 years) |
+| FX | `EUR/USD`, `GBP/USD`, `JPY/USD`, `CHF/USD`, `AUD/USD`, `CAD/USD` | Chainlink feed | trading days |
+| Metals | `XAU/USD` (gold), `XAG/USD` (silver) | Chainlink feed | trading days |
+| Equities/ETFs | `SPY/USD`, `QQQ/USD`, `NVDA/USD`, `TSLA/USD`, `GOOGL/USD` | Chainlink feed | trading days |
+| US Treasury yields | `US1M` … `US6M`, `US1Y`, `US2Y`, `US3Y`, `US5Y`, `US7Y`, `US10Y`, `US20Y`, `US30Y` | US Treasury | trading days |
+| US macro | `CPI`, `UNRATE`, `PAYEMS`, `AHE` | BLS | monthly |
+| Companies | any US-listed ticker, e.g. `AAPL` | SEC EDGAR | per filing |
 
-## `search_markets` — Search financial markets
+Use `search_markets` to discover feeds; the on-chain catalog is loaded from Chainlink's public
+feed directory at runtime (about 140 price feeds).
 
-Find ticker symbols and dated news links for a company, asset, sector, or market topic.
+Common parameters: **period** is one of `1mo`, `3mo`, `6mo`, `1y`, `5y`, `ytd` (default
+`3mo`); **start / end** are inclusive ISO dates that replace `period` (both required, `end`
+not in the future, at most 25 years).
 
-| Parameter | Type | Constraints |
-|---|---|---|
-| `query` | Query | required |
-| `limit` | integer | 1–10, default 6; maximum symbols and headlines each |
+## `search_markets` — Search markets catalog
 
-Response keys: `query`, `retrieved_at`, `sources`, `instruments`, `news`, `caveats`.
+| Parameter | Constraints |
+|---|---|
+| `query` | text, 1–200 characters |
+| `limit` | 1–10, default 6 |
+
+Response keys: `query`, `retrieved_at`, `sources`, `instruments`, `news`, `partial_errors`,
+`caveats`. Each instrument names the tool(s) that accept it.
 
 ## `research_asset` — Research an asset
 
-One symbol with dated prices, period performance, risk statistics, price history, and
-related news links.
+| Parameter | Constraints |
+|---|---|
+| `symbol` | see the symbol table |
+| `period` | default `3mo`; ignored when `start`/`end` given |
+| `start`, `end` | optional, both or neither |
 
-| Parameter | Type | Constraints |
-|---|---|---|
-| `symbol` | Symbol | required |
-| `period` | period | default `3mo`; ignored when `start` and `end` are given |
-| `start`, `end` | start / end | optional, both or neither |
+Response keys: `symbol`, `period`, `interval`, `retrieved_at`, `sources`, `asset`, `latest`,
+`period_performance`, `statistics`, `history`, `news`, `partial_errors`, `caveats`.
 
-Response keys: `symbol`, `period`, `interval`, `retrieved_at`, `sources`, `asset`,
-`latest_price`, `period_performance`, `statistics`, `price_history`, `news`,
-`partial_errors`, `caveats`.
-
-`statistics` holds `observation_count`, `max_drawdown_percent` (largest peak-to-trough
-decline in the returned series), `annualized_volatility_percent` (sample standard deviation
-of log returns, scaled by √252 for daily or √52 for weekly bars), and `explanation`. Both
-figures are `null` with an explanation when the series has fewer than three positive
-observations. They describe the returned series only; they are not forecasts.
-
-A news failure is reported in `partial_errors` while prices are still returned; a chart
-failure is a tool error.
+`period_performance.measure` is `percent` for prices (with `return_percent`) or `points` for
+yields and rates (with `change` in percentage points). `statistics` (max drawdown, annualized
+volatility from sample standard deviation of log returns, √252 daily / √52 weekly / √12
+monthly) applies to prices only. A headline failure is reported in `partial_errors` while the
+series is still returned; a series failure is a tool error.
 
 ## `compare_assets` — Compare assets
 
-Compare 2–6 distinct symbols over aligned observation dates in their local currencies.
-
-| Parameter | Type | Constraints |
-|---|---|---|
-| `symbols` | list of Symbol | 2–6 entries, duplicates removed |
-| `period` | period | default `3mo`; ignored when `start` and `end` are given |
-| `start`, `end` | start / end | optional, both or neither |
+| Parameter | Constraints |
+|---|---|
+| `symbols` | 2–6 entries, duplicates removed |
+| `period`, `start`, `end` | as above |
 
 Response keys: `symbols`, `period`, `interval`, `retrieved_at`, `assets`, `partial_errors`,
-`comparison`, `caveats`.
-
-Returns are computed only over session dates shared by every available asset. Symbols that
-fail are listed in `partial_errors` and marked `available: false`; mixed adjusted-close and
-raw-close bases are flagged as not comparable rather than blended.
+`comparison`, `caveats`. Changes are computed over dates shared by every retrieved series.
+Selections that mix prices with yields or indexes are flagged `returns_comparable: false`.
 
 ## `market_overview` — Market overview
 
-Period returns for a fixed basket: `^GSPC`, `^IXIC`, `^DJI`, `^RUT`, `^VIX`, `^TNX`,
-`DX-Y.NYB`, `GC=F`, `CL=F`, `BTC-USD`, `ETH-USD`, `EURUSD=X`. The basket is chosen by
-Nomina; it is not a provider index.
+`period` default `1mo`. Basket: `BTC/USD`, `ETH/USD`, `SOL/USD`, `XAU/USD`, `SPY/USD`,
+`QQQ/USD`, `EUR/USD`, `US2Y`, `US10Y`, `CPI`. Members that fail are listed in
+`partial_errors`; the tool fails only when every member fails.
 
-| Parameter | Type | Constraints |
-|---|---|---|
-| `period` | period | default `1mo` |
+## `company_fundamentals` — Company fundamentals
 
-Response keys: `period`, `interval`, `retrieved_at`, `assets`, `partial_errors`, `caveats`.
-Each asset carries `symbol`, `available`, `name`, `asset_type`, `currency`, `latest_price`,
-`period_performance`, and `source`, or `available: false` with an `error`. The tool fails
-only when every basket member fails.
+| Parameter | Constraints |
+|---|---|
+| `ticker` | US-listed ticker of an SEC registrant |
+
+Response keys: `ticker`, `name`, `cik`, `source`, `latest_annual`, `latest_quarterly`,
+`recent_filings`, `retrieved_at`, `caveats`. Figures: revenue, net income, operating income,
+diluted EPS, total assets, total liabilities, stockholders' equity, cash, operating cash flow —
+each with `value`, `unit`, `period_start`, `period_end`, `fiscal_year`, `fiscal_period`,
+`form`, `filed`. Annual figures come from 10-K filings, quarterly from 10-Q filings; the
+latest period wins across the XBRL concepts a filer may use.
 
 ## What it is not
 
-- Unofficial public endpoints may be delayed, incomplete, unavailable, or rate limited.
-- No real-time data guarantee; always use the provider's quote and observation timestamps.
-- Headlines and links only, not full articles or an exhaustive news search.
-- No financial statements, analyst estimates, order execution, or account access.
-- Adjusted closes are provider-defined; do not assume an audited total-return series.
-- Returns exclude investor-specific fees, taxes and currency conversion.
-- Short or unavailable histories and partial comparisons are explicitly identified.
+- No individual stock prices beyond the equities with on-chain feeds.
+- Oracle prices are aggregates updating on heartbeat or deviation; a day's close is the last
+  on-chain update before midnight UTC and can lag exchange closes.
+- On-chain history begins when a feed launched; earlier dates are reported as unavailable.
+- Headlines are GDELT records (title and link), not article text; GDELT throttles to one
+  request per five seconds.
+- Macro series are monthly and revised by the agency.
+- Returns exclude fees, taxes and currency conversion; yields change in percentage points.
 
 ## Resource and prompt
 
-- **Resource `nomina://sources`** (`application/json`) — provider, coverage, the limitations
-  above, the privacy statement, and links to the [privacy policy](../privacy/), this
-  documentation, Yahoo's privacy policy and terms of use.
-- **Prompt `research_brief`** (`topic`: Query) — starts a concise, source-backed research
-  brief that cites links and observation dates and separates facts from interpretation.
+- **Resource `nomina://sources`** (`application/json`) — every source with coverage, access
+  terms and URL, the limitations above, the privacy statement, and citations.
+- **Prompt `research_brief`** (`topic`) — starts a concise, source-backed research brief that
+  cites links and observation dates and separates facts from interpretation.

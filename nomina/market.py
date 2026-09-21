@@ -1,145 +1,72 @@
-"""Yahoo Finance-backed market research helpers for Nomina."""
+"""Research orchestration over license-free sources: on-chain oracle prices and public statistics."""
 
 from __future__ import annotations
 
 import asyncio
 import math
-import re
 import statistics
-import time
-from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from itertools import pairwise
 from typing import Any, Literal
-from urllib.parse import quote, urlparse
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
+
+from nomina.sources import bls, treasury
+from nomina.sources.bls import BLS
+from nomina.sources.chainlink import Chainlink, Feed
+from nomina.sources.common import Fetcher, Instrument, MarketDataError, Point, Series, now_iso
+from nomina.sources.edgar import Edgar
+from nomina.sources.gdelt import Gdelt
+from nomina.sources.treasury import Treasury
 
 Period = Literal["1mo", "3mo", "6mo", "1y", "5y", "ytd"]
 
 OVERVIEW_SYMBOLS = (
-    "^GSPC",
-    "^IXIC",
-    "^DJI",
-    "^RUT",
-    "^VIX",
-    "^TNX",
-    "DX-Y.NYB",
-    "GC=F",
-    "CL=F",
-    "BTC-USD",
-    "ETH-USD",
-    "EURUSD=X",
+    "BTC/USD",
+    "ETH/USD",
+    "SOL/USD",
+    "XAU/USD",
+    "SPY/USD",
+    "QQQ/USD",
+    "EUR/USD",
+    "US2Y",
+    "US10Y",
+    "CPI",
 )
 
-_YAHOO_ORIGIN = "https://query1.finance.yahoo.com"
-_CHART_URL = _YAHOO_ORIGIN + "/v8/finance/chart/{}"
-_SEARCH_URL = _YAHOO_ORIGIN + "/v1/finance/search"
-_QUOTE_PAGE = "https://finance.yahoo.com/quote/{}"
-_PERIODS = {"1mo", "3mo", "6mo", "1y", "5y", "ytd"}
-_SYMBOL = re.compile(r"[A-Za-z0-9^=._-]{1,32}\Z")
+_PERIOD_DAYS = {"1mo": 30, "3mo": 91, "6mo": 182, "1y": 365, "5y": 1826}
 _MAX_WINDOW_DAYS = 9131  # 25 years
-_CACHE_TTL_SECONDS = 60
-_CACHE_MAX_ENTRIES = 256
+_WEEKLY_AFTER_DAYS = 730
 _WINDOW_CAVEAT = (
-    "Explicit date window; observations are the provider's available sessions inside the window."
+    "Explicit date window; observations are the source's available sessions inside the window."
 )
 _STATISTICS_CAVEAT = (
     "Volatility and drawdown are descriptive statistics of the returned series, not forecasts."
 )
+_LATEST_CAVEAT = (
+    "The most recent observation can be a partial day; on-chain feeds update on heartbeat or "
+    "deviation, so a day's close is its last update before midnight UTC."
+)
+_PERIODS_PER_YEAR = {"1d": 252, "1wk": 52, "1mo": 12}
+
+__all__ = ["OVERVIEW_SYMBOLS", "MarketData", "MarketDataError", "Period"]
 
 
-class MarketDataError(Exception):
-    """An actionable problem retrieving or interpreting provider data."""
-
-
-@dataclass(frozen=True)
-class _Bar:
-    timestamp: int
-    observed_at: str
-    date: str
-    close: float
-    adjusted_close: float | None
-    high: float | None
-    low: float | None
-
-
-@dataclass(frozen=True)
-class _Chart:
-    symbol: str
-    period: str
-    interval: str
-    source_url: str
-    name: str | None
-    asset_type: str | None
-    currency: str | None
-    exchange: str | None
-    bars: list[_Bar]
-    provider_as_of: str | None
-    timezone: str | None
-    quote_price: float | None
-    day_high: float | None
-    day_low: float | None
-
-    @property
-    def return_basis(self) -> str:
-        return (
-            "adjusted_close"
-            if all(bar.adjusted_close is not None for bar in self.bars)
-            else "close"
-        )
-
-
-def _now() -> str:
-    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
-
-
-def _iso_timestamp(value: float) -> str:
-    try:
-        return datetime.fromtimestamp(value, UTC).isoformat().replace("+00:00", "Z")
-    except (OverflowError, OSError, ValueError) as exc:
-        raise MarketDataError("Yahoo Finance returned an invalid timestamp.") from exc
-
-
-def _finite_number(value: Any, field: str, *, allow_none: bool = True) -> float | None:
-    if value is None and allow_none:
-        return None
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
-        raise MarketDataError(f"Yahoo Finance returned a non-finite or invalid {field} value.")
-    return float(value)
-
-
-def _timestamp(value: Any) -> int:
-    number = _finite_number(value, "timestamp", allow_none=False)
-    assert number is not None
-    if not number.is_integer() or number < 0:
-        raise MarketDataError("Yahoo Finance returned an invalid timestamp.")
-    return int(number)
-
-
-def _text(value: Any) -> str | None:
-    if isinstance(value, str):
-        value = value.strip()
-        return value or None
-    return None
-
-
-def _normalize_symbol(symbol: str) -> str:
-    if not isinstance(symbol, str):
-        raise MarketDataError("A symbol must be text containing 1 to 32 supported characters.")
-    normalized = symbol.strip().upper()
-    if not _SYMBOL.fullmatch(normalized):
-        raise MarketDataError(
-            "A symbol must contain 1 to 32 letters, digits, or ^ = . _ - characters."
-        )
-    return normalized
+def _today() -> date:
+    return datetime.now(UTC).date()
 
 
 def _normalize_period(period: str) -> str:
-    if period not in _PERIODS:
+    if period not in _PERIOD_DAYS and period != "ytd":
         raise MarketDataError("Period must be one of: 1mo, 3mo, 6mo, 1y, 5y, ytd.")
     return period
+
+
+def _period_window(period: str) -> tuple[date, date]:
+    end = _today()
+    if period == "ytd":
+        return date(end.year, 1, 1), end
+    return end - timedelta(days=_PERIOD_DAYS[period]), end
 
 
 def _normalize_window(start: date | None, end: date | None) -> tuple[date, date] | None:
@@ -155,159 +82,230 @@ def _normalize_window(start: date | None, end: date | None) -> tuple[date, date]
         end = end.date()
     if start >= end:
         raise MarketDataError("start must be earlier than end.")
-    if end > datetime.now(UTC).date():
+    if end > _today():
         raise MarketDataError("end cannot be in the future.")
     if (end - start).days > _MAX_WINDOW_DAYS:
         raise MarketDataError("Date windows are limited to 25 years.")
     return start, end
 
 
-def _period_interval(period: str) -> str:
-    return "1wk" if period == "5y" else "1d"
+def _weekly_downsample(points: list[Point]) -> list[Point]:
+    """Keep the last observation of each ISO week."""
+    kept: dict[tuple[int, int], Point] = {}
+    for point in points:
+        iso = date.fromisoformat(point.date).isocalendar()
+        kept[(iso.year, iso.week)] = point
+    return [kept[key] for key in sorted(kept)]
 
 
-def _window_interval(start: date, end: date) -> str:
-    return "1d" if (end - start).days <= 730 else "1wk"
-
-
-def _window_label(start: date, end: date) -> str:
-    return f"{start.isoformat()}..{end.isoformat()}"
-
-
-def _unix_midnight(value: date) -> int:
-    return int(datetime(value.year, value.month, value.day, tzinfo=UTC).timestamp())
-
-
-def _chart_error_message(exc: BaseException) -> str:
-    return str(exc) if isinstance(exc, MarketDataError) else "Yahoo Finance chart retrieval failed."
-
-
-def _https_url(value: Any) -> str | None:
-    if not isinstance(value, str):
-        return None
-    try:
-        parsed = urlparse(value)
-        return (
-            value if parsed.scheme == "https" and parsed.hostname and not parsed.username else None
-        )
-    except ValueError:
-        return None
-
-
-def _news_url(item: dict[str, Any]) -> str | None:
-    canonical = item.get("canonicalUrl")
-    if isinstance(canonical, dict):
-        url = _https_url(canonical.get("url"))
-        if url:
-            return url
-    return _https_url(item.get("link"))
-
-
-def _published_at(item: dict[str, Any]) -> str | None:
-    value = item.get("providerPublishTime")
-    if value is None:
-        return None
-    return _iso_timestamp(_timestamp(value))
-
-
-def _normalise_news(items: list[Any], limit: int) -> list[dict[str, str | None]]:
-    normalised: list[dict[str, str | None]] = []
-    seen: set[tuple[str, str | None]] = set()
-    for item in items:
-        if not isinstance(item, dict):
-            raise MarketDataError("Yahoo Finance returned malformed news data.")
-        title = _text(item.get("title"))
-        url = _news_url(item)
-        if title is None or url is None:
-            continue
-        published_at = _published_at(item)
-        key = (url, published_at)
-        if key in seen:
-            continue
-        seen.add(key)
-        normalised.append(
-            {
-                "title": title,
-                "publisher": _text(item.get("publisher")),
-                "url": url,
-                "published_at": published_at,
-            }
-        )
-    normalised.sort(key=lambda entry: entry["published_at"] or "", reverse=True)
-    return normalised[:limit]
-
-
-def _source(name: str, url: str, as_of: str | None) -> dict[str, str | None]:
-    return {"name": name, "url": url, "as_of": as_of}
+def _source_error(exc: BaseException) -> str:
+    return str(exc) if isinstance(exc, MarketDataError) else "Source retrieval failed."
 
 
 class MarketData:
-    """Read-only Yahoo Finance data access using an injected HTTP client."""
+    """Read-only research over Chainlink feeds, US Treasury, BLS, SEC EDGAR and GDELT."""
 
     def __init__(self, client: httpx.AsyncClient) -> None:
-        self.client = client
-        self._cache: dict[str, tuple[float, Any]] = {}
+        self.fetcher = Fetcher(client)
+        self.chainlink = Chainlink(self.fetcher)
+        self.treasury = Treasury(self.fetcher)
+        self.bls = BLS(self.fetcher)
+        self.edgar = Edgar(self.fetcher)
+        self.gdelt = Gdelt(self.fetcher)
+
+    # -- resolution ----------------------------------------------------------------------
+
+    async def _resolve(self, symbol: str) -> tuple[Instrument, Feed | None]:
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise MarketDataError("A symbol must be non-empty text.")
+        tenor = treasury.resolve(symbol)
+        if tenor:
+            return treasury.instrument(tenor), None
+        macro = bls.resolve(symbol)
+        if macro:
+            return bls.instrument(macro), None
+        feed = await self.chainlink.resolve(symbol)
+        if feed:
+            return feed.instrument, feed
+        raise MarketDataError(
+            f"Unknown symbol {symbol!r}. Use search_markets to find on-chain feeds (e.g. BTC/USD, "
+            "SPY/USD, EUR/USD, XAU/USD), Treasury tenors (US2Y, US10Y) or macro series (CPI, UNRATE)."
+        )
+
+    async def _series(
+        self, instrument: Instrument, feed: Feed | None, start: date, end: date, label: str
+    ) -> Series:
+        weekly = (end - start).days > _WEEKLY_AFTER_DAYS
+        notes: list[str] = []
+        if feed is not None:
+            points = await self.chainlink.series(feed, start, end, weekly)
+            latest = await self.chainlink.latest(feed)
+            latest_value: float | None = latest.answer
+            latest_at: str | None = datetime.fromtimestamp(latest.updated_at, UTC).isoformat()
+            latest_at = latest_at.replace("+00:00", "Z")
+            interval = "1wk" if weekly else "1d"
+            source_url = instrument.url
+        elif instrument.kind == "yield":
+            points = await self.treasury.series(instrument.symbol, start, end)
+            if weekly:
+                points = _weekly_downsample(points)
+            interval = "1wk" if weekly else "1d"
+            source_url = self.treasury.source_url(start)
+            latest_value = points[-1].value if points else None
+            latest_at = points[-1].observed_at if points else None
+        else:
+            # Monthly releases lag by weeks; always include the two most recent months.
+            macro_start = min(start, end - timedelta(days=75))
+            points = await self.bls.series(instrument.symbol, macro_start, end)
+            if macro_start < start:
+                notes.append(
+                    "Monthly series: the window was widened to include the latest two releases."
+                )
+            interval = "1mo"
+            source_url = instrument.url
+            latest_value = points[-1].value if points else None
+            latest_at = points[-1].observed_at if points else None
+        if not points:
+            raise MarketDataError(
+                f"{instrument.source} returned no observations for {instrument.symbol} in this window."
+            )
+        if feed is not None and points[0].date > start.isoformat():
+            notes.append(
+                f"The on-chain feed's history starts {points[0].date}; earlier dates are unavailable."
+            )
+        return Series(
+            instrument=instrument,
+            period=label,
+            interval=interval,
+            points=points,
+            source_url=source_url,
+            latest_value=latest_value,
+            latest_at=latest_at,
+            notes=notes,
+        )
+
+    async def _load(
+        self, symbol: str, period: str | None, window: tuple[date, date] | None
+    ) -> Series:
+        instrument, feed = await self._resolve(symbol)
+        if window:
+            start, end = window
+            label = f"{start.isoformat()}..{end.isoformat()}"
+        else:
+            start, end = _period_window(period or "3mo")
+            label = period or "3mo"
+        return await self._series(instrument, feed, start, end, label)
+
+    # -- tools ---------------------------------------------------------------------------
 
     async def search(self, query: str, limit: int = 6) -> dict[str, Any]:
-        """Return Yahoo Finance's bounded related instruments and linked headlines."""
         if not isinstance(query, str) or not (query := query.strip()) or len(query) > 200:
             raise MarketDataError("Search query must contain 1 to 200 non-whitespace characters.")
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 10:
             raise MarketDataError("Search limit must be an integer from 1 to 10.")
-
-        payload, source_url = await self._search_payload(query, limit)
-        quotes = payload.get("quotes", [])
-        news = payload.get("news", [])
-        if not isinstance(quotes, list) or not isinstance(news, list):
-            raise MarketDataError("Yahoo Finance returned a malformed search response.")
-
-        instruments: list[dict[str, str | None]] = []
-        seen: set[str] = set()
-        for item in quotes:
-            if not isinstance(item, dict):
-                raise MarketDataError("Yahoo Finance returned malformed instrument data.")
-            raw_symbol = _text(item.get("symbol"))
-            if raw_symbol is None:
-                continue
-            try:
-                symbol = _normalize_symbol(raw_symbol)
-            except MarketDataError:
-                continue
-            if symbol in seen:
-                continue
-            seen.add(symbol)
+        feeds_task = self.chainlink.search(query, limit)
+        companies_task = self.edgar.search(query, limit)
+        news_task = self.gdelt.headlines(query, limit)
+        feeds, companies, news_result = await asyncio.gather(
+            feeds_task, companies_task, news_task, return_exceptions=True
+        )
+        partial_errors: list[dict[str, str]] = []
+        instruments: list[dict[str, Any]] = []
+        if isinstance(feeds, BaseException):
+            partial_errors.append(
+                {"source": "Chainlink feed directory", "message": _source_error(feeds)}
+            )
+        else:
+            for feed in feeds:
+                inst = feed.instrument
+                instruments.append(
+                    {
+                        "symbol": inst.symbol,
+                        "name": inst.name,
+                        "asset_type": inst.kind,
+                        "source": inst.source,
+                        "url": inst.url,
+                        "tools": ["research_asset", "compare_assets"],
+                    }
+                )
+        for tenor in treasury.search(query, limit):
+            inst = treasury.instrument(tenor)
             instruments.append(
                 {
-                    "symbol": symbol,
-                    "name": _text(item.get("longname"))
-                    or _text(item.get("shortname"))
-                    or _text(item.get("displayName")),
-                    "exchange": _text(item.get("exchDisp")) or _text(item.get("exchange")),
-                    "asset_type": _text(item.get("quoteType")),
-                    "url": _QUOTE_PAGE.format(quote(symbol, safe="")),
+                    "symbol": inst.symbol,
+                    "name": inst.name,
+                    "asset_type": inst.kind,
+                    "source": inst.source,
+                    "url": inst.url,
+                    "tools": ["research_asset", "compare_assets"],
                 }
             )
-            if len(instruments) == limit:
-                break
-
-        headlines = _normalise_news(news, limit)
-        latest_headline = max(
-            (item["published_at"] for item in headlines if item["published_at"]), default=None
-        )
+        for macro in bls.search(query, limit):
+            inst = bls.instrument(macro)
+            instruments.append(
+                {
+                    "symbol": inst.symbol,
+                    "name": inst.name,
+                    "asset_type": inst.kind,
+                    "source": inst.source,
+                    "url": inst.url,
+                    "tools": ["research_asset", "compare_assets"],
+                }
+            )
+        if isinstance(companies, BaseException):
+            partial_errors.append(
+                {"source": "SEC EDGAR company list", "message": _source_error(companies)}
+            )
+        else:
+            for company in companies:
+                instruments.append(
+                    {
+                        "symbol": company["ticker"],
+                        "name": company["name"],
+                        "asset_type": "company",
+                        "source": "SEC EDGAR",
+                        "url": f"https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={company['cik']:010d}",
+                        "tools": ["company_fundamentals"],
+                    }
+                )
+        news: list[dict[str, str | None]] = []
+        sources: list[dict[str, Any]] = [
+            {
+                "name": "Chainlink feed directory",
+                "url": "https://data.chain.link/feeds/ethereum/mainnet",
+                "as_of": None,
+            },
+            {
+                "name": "SEC EDGAR company list",
+                "url": "https://www.sec.gov/files/company_tickers.json",
+                "as_of": None,
+            },
+        ]
+        if isinstance(news_result, BaseException):
+            partial_errors.append(
+                {"source": "GDELT article search", "message": _source_error(news_result)}
+            )
+        else:
+            news = news_result
+            sources.append(self.gdelt.source(query))
         caveats = [
-            "Results are Yahoo Finance search matches and linked headlines, not a complete market or news search.",
-            "Headlines are not article text; Nomina does not summarise or fetch linked articles.",
+            (
+                "Instruments are matches from Nomina's catalog of on-chain feeds, Treasury tenors, "
+                "BLS series and SEC registrants; it is not an exhaustive market search."
+            ),
+            "Headlines are GDELT article records (title and link), not article text.",
         ]
         if not instruments:
-            caveats.append("Yahoo Finance returned no matching instruments for this query.")
-        if not headlines:
-            caveats.append("Yahoo Finance returned no usable recent headlines for this query.")
+            caveats.append("No catalog instrument matched this query.")
+        if not news:
+            caveats.append("No usable recent headlines were returned.")
         return {
             "query": query,
-            "retrieved_at": _now(),
-            "sources": [_source("Yahoo Finance search", source_url, latest_headline)],
-            "instruments": instruments,
-            "news": headlines,
+            "retrieved_at": now_iso(),
+            "sources": sources,
+            "instruments": instruments[: max(limit, 1) * 2],
+            "news": news,
+            "partial_errors": partial_errors,
             "caveats": caveats,
         }
 
@@ -319,115 +317,64 @@ class MarketData:
         start: date | None = None,
         end: date | None = None,
     ) -> dict[str, Any]:
-        """Return a chart-backed asset report, retaining chart data if news is unavailable."""
-        normalized = _normalize_symbol(symbol)
         window = _normalize_window(start, end)
-        chart_request = (
-            self._fetch_chart_window(normalized, *window)
-            if window
-            else self._fetch_chart(normalized, _normalize_period(period))
-        )
-        chart_result, news_result = await asyncio.gather(
-            chart_request,
-            self._search_payload(normalized, 6),
+        selected = None if window else _normalize_period(period)
+        instrument, _ = await self._resolve(symbol)
+        series_result, news_result = await asyncio.gather(
+            self._load(symbol, selected, window),
+            self.gdelt.headlines(instrument.name, 6),
             return_exceptions=True,
         )
-        if isinstance(chart_result, Exception):
-            if isinstance(chart_result, MarketDataError):
-                raise chart_result
-            raise MarketDataError("Yahoo Finance chart retrieval failed.") from chart_result
-        chart = chart_result
-        assert isinstance(chart, _Chart)
-
-        news: list[dict[str, str | None]] = []
+        if isinstance(series_result, BaseException):
+            if isinstance(series_result, MarketDataError):
+                raise series_result
+            raise MarketDataError("Source retrieval failed.") from series_result
+        series = series_result
         partial_errors: list[dict[str, str]] = []
-        sources = [_source("Yahoo Finance chart", chart.source_url, chart.provider_as_of)]
-        if isinstance(news_result, Exception):
-            message = (
-                str(news_result)
-                if isinstance(news_result, MarketDataError)
-                else "Yahoo Finance news retrieval failed."
-            )
-            partial_errors.append({"source": "Yahoo Finance search", "message": message})
-        else:
-            news_payload, news_url = news_result
-            raw_news = news_payload.get("news", [])
-            if not isinstance(raw_news, list):
-                partial_errors.append(
-                    {
-                        "source": "Yahoo Finance search",
-                        "message": "Yahoo Finance returned malformed news data.",
-                    }
-                )
-            else:
-                try:
-                    news = _normalise_news(raw_news, 6)
-                except MarketDataError as exc:
-                    partial_errors.append({"source": "Yahoo Finance search", "message": str(exc)})
-                else:
-                    news_as_of = max(
-                        (item["published_at"] for item in news if item["published_at"]),
-                        default=None,
-                    )
-                    sources.append(_source("Yahoo Finance search", news_url, news_as_of))
-
-        performance = self._performance(chart.bars, chart.return_basis)
-        caveats = [
-            "The latest chart bar can be incomplete; Yahoo Finance prices may be delayed.",
-            "Period performance uses the first and last available chart observations in the selected range.",
-            "Observation dates use the exchange timezone; bar timestamps mark the interval start, not the quote time.",
+        news: list[dict[str, str | None]] = []
+        sources: list[dict[str, Any]] = [
+            {"name": instrument.source, "url": series.source_url, "as_of": series.latest_at}
         ]
-        if chart.return_basis == "close":
-            caveats.append(
-                "Yahoo Finance did not provide a complete adjusted-close series, so the return uses raw closes for every observation."
+        if isinstance(news_result, BaseException):
+            partial_errors.append(
+                {"source": "GDELT article search", "message": _source_error(news_result)}
             )
         else:
-            caveats.append(
-                "Period performance uses adjusted closes consistently across the full return series."
-            )
-        if not news:
-            caveats.append("No usable recent linked headlines were returned by Yahoo Finance.")
-        if chart.quote_price is None or chart.provider_as_of is None:
-            caveats.append(
-                "The provider did not return a complete current quote and timestamp; consult the dated price history."
-            )
-        if chart.timezone is None:
-            caveats.append(
-                "The provider did not supply an exchange timezone; historical dates use UTC."
-            )
+            news = news_result
+            sources.append(self.gdelt.source(instrument.name))
+        performance = self._performance(series.points, instrument.measure, instrument.unit)
+        caveats = [
+            _LATEST_CAVEAT,
+            "Period performance uses the first and last available observations in the selected range.",
+        ]
+        caveats.extend(series.notes)
         if window:
             caveats.append(_WINDOW_CAVEAT)
-        caveats.append(_STATISTICS_CAVEAT)
-
+        if instrument.measure == "percent":
+            caveats.append(_STATISTICS_CAVEAT)
+        else:
+            caveats.append("Changes are in percentage points of the reported rate, not returns.")
+        if not news:
+            caveats.append("No usable recent headlines were returned.")
         return {
-            "symbol": chart.symbol,
-            "period": chart.period,
-            "interval": chart.interval,
-            "retrieved_at": _now(),
+            "symbol": instrument.symbol,
+            "period": series.period,
+            "interval": series.interval,
+            "retrieved_at": now_iso(),
             "sources": sources,
             "asset": {
-                "name": chart.name,
-                "asset_type": chart.asset_type,
-                "currency": chart.currency,
-                "exchange": chart.exchange,
-                "date_timezone": chart.timezone or "UTC (provider timezone unavailable)",
+                "name": instrument.name,
+                "asset_type": instrument.kind,
+                "unit": instrument.unit,
+                "source": instrument.source,
+                "frequency": instrument.frequency,
             },
-            "latest_price": {
-                "value": chart.quote_price,
-                "price_timestamp": chart.provider_as_of,
-                "day_high": chart.day_high,
-                "day_low": chart.day_low,
-            },
+            "latest": {"value": series.latest_value, "observed_at": series.latest_at},
             "period_performance": performance,
-            "statistics": self._statistics(chart.bars, chart.return_basis, chart.interval),
-            "price_history": [
-                {
-                    "date": bar.date,
-                    "timestamp": bar.observed_at,
-                    "close": bar.close,
-                    "adjusted_close": bar.adjusted_close,
-                }
-                for bar in chart.bars
+            "statistics": self._statistics(series.points, instrument.measure, series.interval),
+            "history": [
+                {"date": point.date, "observed_at": point.observed_at, "value": point.value}
+                for point in series.points
             ],
             "news": news,
             "partial_errors": partial_errors,
@@ -442,437 +389,250 @@ class MarketData:
         start: date | None = None,
         end: date | None = None,
     ) -> dict[str, Any]:
-        """Compare chart returns only over common observation dates among available assets."""
         if not isinstance(symbols, list):
             raise MarketDataError("Symbols must be a list containing 2 to 6 unique symbols.")
-        normalised: list[str] = []
+        unique: list[str] = []
         for symbol in symbols:
-            candidate = _normalize_symbol(symbol)
-            if candidate not in normalised:
-                normalised.append(candidate)
-        if not 2 <= len(normalised) <= 6:
+            if not isinstance(symbol, str) or not symbol.strip():
+                raise MarketDataError("A symbol must be non-empty text.")
+            key = symbol.strip().upper()
+            if key not in unique:
+                unique.append(key)
+        if not 2 <= len(unique) <= 6:
             raise MarketDataError("Comparison requires 2 to 6 unique symbols.")
         window = _normalize_window(start, end)
-        if window:
-            requests = [self._fetch_chart_window(symbol, *window) for symbol in normalised]
-            period_label, interval = _window_label(*window), _window_interval(*window)
-        else:
-            selected_period = _normalize_period(period)
-            requests = [self._fetch_chart(symbol, selected_period) for symbol in normalised]
-            period_label, interval = selected_period, _period_interval(selected_period)
-
-        results = await asyncio.gather(*requests, return_exceptions=True)
-        charts: dict[str, _Chart] = {}
-        assets: list[dict[str, Any]] = []
-        errors: list[dict[str, str]] = []
-        for symbol, result in zip(normalised, results, strict=True):
-            if isinstance(result, Exception):
-                message = _chart_error_message(result)
-                errors.append({"symbol": symbol, "message": message})
-                assets.append({"symbol": symbol, "available": False, "error": message})
-            else:
-                assert isinstance(result, _Chart)
-                charts[symbol] = result
-
-        if not charts:
-            details = "; ".join(f"{item['symbol']}: {item['message']}" for item in errors)
-            raise MarketDataError(
-                f"Yahoo Finance could not retrieve any requested charts. {details}"
-            )
-
-        common_dates: set[str] | None = None
-        date_maps: dict[str, dict[str, _Bar]] = {}
-        for symbol, chart in charts.items():
-            date_map = {bar.date: bar for bar in chart.bars}
-            date_maps[symbol] = date_map
-            common_dates = set(date_map) if common_dates is None else common_dates & set(date_map)
-        ordered_common_dates = sorted(common_dates or set())
-        comparison_possible = (
-            len(charts) >= 2
-            and len(ordered_common_dates) >= 2
-            and all(chart.timezone is not None for chart in charts.values())
+        selected = None if window else _normalize_period(period)
+        results = await asyncio.gather(
+            *(self._load(symbol, selected, window) for symbol in unique), return_exceptions=True
         )
-        first_date = ordered_common_dates[0] if comparison_possible else None
-        last_date = ordered_common_dates[-1] if comparison_possible else None
+        loaded: dict[str, Series] = {}
+        assets: dict[str, dict[str, Any]] = {}
+        errors: list[dict[str, str]] = []
+        for symbol, result in zip(unique, results, strict=True):
+            if isinstance(result, BaseException):
+                message = _source_error(result)
+                errors.append({"symbol": symbol, "message": message})
+                assets[symbol] = {"symbol": symbol, "available": False, "error": message}
+            else:
+                loaded[symbol] = result
+        if not loaded:
+            details = "; ".join(f"{e['symbol']}: {e['message']}" for e in errors)
+            raise MarketDataError(f"No requested series could be retrieved. {details}")
 
-        bases = {chart.return_basis for chart in charts.values()}
-        all_returns: list[float | None] = []
-        for symbol in normalised:
-            chart = charts.get(symbol)
-            if chart is None:
-                continue
-            performance: dict[str, Any]
-            if comparison_possible and first_date is not None and last_date is not None:
+        common: set[str] | None = None
+        by_date: dict[str, dict[str, Point]] = {}
+        for symbol, series in loaded.items():
+            mapping = {point.date: point for point in series.points}
+            by_date[symbol] = mapping
+            common = set(mapping) if common is None else common & set(mapping)
+        ordered = sorted(common or set())
+        possible = len(loaded) >= 2 and len(ordered) >= 2
+        first_date = ordered[0] if possible else None
+        last_date = ordered[-1] if possible else None
+        measures = {series.instrument.measure for series in loaded.values()}
+        frequencies = {series.instrument.frequency for series in loaded.values()}
+
+        for symbol, series in loaded.items():
+            inst = series.instrument
+            if possible and first_date and last_date:
                 performance = self._performance(
-                    [date_maps[symbol][first_date], date_maps[symbol][last_date]],
-                    chart.return_basis,
+                    [by_date[symbol][first_date], by_date[symbol][last_date]],
+                    inst.measure,
+                    inst.unit,
                 )
             else:
                 performance = {
+                    "measure": inst.measure,
                     "return_percent": None,
-                    "basis": chart.return_basis,
+                    "change": None,
+                    "first_value": None,
+                    "last_value": None,
                     "first_observation_date": None,
                     "last_observation_date": None,
-                    "explanation": "Comparison needs two successful assets with known exchange timezones and two shared session dates.",
+                    "explanation": "Comparison needs two retrieved series and two shared observation dates.",
                 }
-            all_returns.append(performance["return_percent"])
-            assets.append(
-                {
-                    "symbol": chart.symbol,
-                    "available": True,
-                    "name": chart.name,
-                    "asset_type": chart.asset_type,
-                    "currency": chart.currency,
-                    "exchange": chart.exchange,
-                    "date_timezone": chart.timezone or "UTC (provider timezone unavailable)",
-                    "source": _source(
-                        "Yahoo Finance chart", chart.source_url, chart.provider_as_of
-                    ),
-                    "common_period_performance": performance,
-                }
+            assets[symbol] = {
+                "symbol": inst.symbol,
+                "available": True,
+                "name": inst.name,
+                "asset_type": inst.kind,
+                "unit": inst.unit,
+                "source": {
+                    "name": inst.source,
+                    "url": series.source_url,
+                    "as_of": series.latest_at,
+                },
+                "common_period_performance": performance,
+            }
+
+        returns = [assets[s]["common_period_performance"].get("return_percent") for s in loaded]
+        comparable = possible and measures == {"percent"} and all(r is not None for r in returns)
+        if not possible:
+            note = "Comparison needs two retrieved series and two shared observation dates."
+        elif measures != {"percent"}:
+            note = (
+                "Returns are not directly comparable: the selection mixes prices (percent returns) "
+                "with rates or indexes (point changes). Compare the per-asset changes instead."
             )
-
-        returns_comparable = (
-            comparison_possible
-            and len(bases) == 1
-            and all(value is not None for value in all_returns)
-        )
-        if not comparison_possible:
-            comparison_note = "Comparison needs two successful assets with known exchange timezones and two shared session dates."
-        elif len(bases) != 1:
-            comparison_note = "Returns are not directly comparable because adjusted-close and raw-close bases differ between assets."
-        elif not returns_comparable:
-            comparison_note = "Returns are not directly comparable because at least one common-period return is unavailable."
+        elif not comparable:
+            note = "Returns are not directly comparable because at least one common-period return is unavailable."
         else:
-            comparison_note = "Returns use common observation dates and a shared price basis; local-currency returns are shown without FX conversion."
+            note = "Returns use common observation dates; prices are in each instrument's own unit."
+        if frequencies == {"daily", "monthly"}:
+            note += " Monthly series only share month-start dates with daily series."
 
-        assets_by_symbol = {asset["symbol"]: asset for asset in assets}
-        ordered_assets = [assets_by_symbol[symbol] for symbol in normalised]
-        caveats = [
-            "Each asset is reported in its local currency; no foreign-exchange conversion is performed.",
-            "The latest chart bar can be incomplete; Yahoo Finance prices may be delayed.",
-            "Shared exchange-local session dates need not have identical market closing times.",
-        ]
         if window:
-            caveats.append(_WINDOW_CAVEAT)
+            label = f"{window[0].isoformat()}..{window[1].isoformat()}"
+        else:
+            label = selected or "3mo"
+        interval = sorted({series.interval for series in loaded.values()})
         return {
-            "symbols": normalised,
-            "period": period_label,
-            "interval": interval,
-            "retrieved_at": _now(),
-            "assets": ordered_assets,
+            "symbols": unique,
+            "period": label,
+            "interval": interval[0] if len(interval) == 1 else "mixed",
+            "retrieved_at": now_iso(),
+            "assets": [assets[symbol] for symbol in unique],
             "partial_errors": errors,
             "comparison": {
                 "common_first_observation_date": first_date,
                 "common_last_observation_date": last_date,
-                "common_observation_count": len(ordered_common_dates),
-                "returns_comparable": returns_comparable,
-                "note": comparison_note,
+                "common_observation_count": len(ordered),
+                "returns_comparable": comparable,
+                "note": note,
             },
-            "caveats": caveats,
+            "caveats": [
+                "Each series is reported in its own unit; no currency conversion is performed.",
+                _LATEST_CAVEAT,
+                "Shared dates are UTC calendar dates of the observations.",
+            ]
+            + ([_WINDOW_CAVEAT] if window else []),
         }
 
     async def overview(self, period: Period = "1mo") -> dict[str, Any]:
-        """Return period returns for a fixed basket of indexes, rates, commodities and crypto."""
-        selected_period = _normalize_period(period)
+        selected = _normalize_period(period)
         results = await asyncio.gather(
-            *(self._fetch_chart(symbol, selected_period) for symbol in OVERVIEW_SYMBOLS),
+            *(self._load(symbol, selected, None) for symbol in OVERVIEW_SYMBOLS),
             return_exceptions=True,
         )
         assets: list[dict[str, Any]] = []
         errors: list[dict[str, str]] = []
         for symbol, result in zip(OVERVIEW_SYMBOLS, results, strict=True):
-            if isinstance(result, Exception):
-                message = _chart_error_message(result)
+            if isinstance(result, BaseException):
+                message = _source_error(result)
                 errors.append({"symbol": symbol, "message": message})
                 assets.append({"symbol": symbol, "available": False, "error": message})
                 continue
-            assert isinstance(result, _Chart)
+            inst = result.instrument
             assets.append(
                 {
-                    "symbol": result.symbol,
+                    "symbol": inst.symbol,
                     "available": True,
-                    "name": result.name,
-                    "asset_type": result.asset_type,
-                    "currency": result.currency,
-                    "latest_price": {
-                        "value": result.quote_price,
-                        "price_timestamp": result.provider_as_of,
+                    "name": inst.name,
+                    "asset_type": inst.kind,
+                    "unit": inst.unit,
+                    "latest": {"value": result.latest_value, "observed_at": result.latest_at},
+                    "period_performance": self._performance(result.points, inst.measure, inst.unit),
+                    "source": {
+                        "name": inst.source,
+                        "url": result.source_url,
+                        "as_of": result.latest_at,
                     },
-                    "period_performance": self._performance(result.bars, result.return_basis),
-                    "source": _source(
-                        "Yahoo Finance chart", result.source_url, result.provider_as_of
-                    ),
                 }
             )
         if len(errors) == len(OVERVIEW_SYMBOLS):
-            raise MarketDataError("Yahoo Finance could not retrieve any overview charts.")
+            raise MarketDataError("No overview series could be retrieved.")
         return {
-            "period": selected_period,
-            "interval": _period_interval(selected_period),
-            "retrieved_at": _now(),
+            "period": selected,
+            "retrieved_at": now_iso(),
             "assets": assets,
             "partial_errors": errors,
             "caveats": [
-                "Each asset is reported in its local currency; no foreign-exchange conversion is performed.",
-                "The latest chart bar can be incomplete; Yahoo Finance prices may be delayed.",
-                "Shared exchange-local session dates need not have identical market closing times.",
+                "Each series is reported in its own unit; no currency conversion is performed.",
+                _LATEST_CAVEAT,
+                "Yields and rates change in percentage points; prices change in percent.",
                 "Basket membership is fixed by Nomina, not a provider index.",
             ],
         }
 
-    async def _search_payload(self, query: str, limit: int) -> tuple[dict[str, Any], str]:
-        params = {"q": query, "quotesCount": str(limit), "newsCount": str(limit)}
-        source_url = str(httpx.URL(_SEARCH_URL, params=params))
-        payload = await self._get_json(_SEARCH_URL, params, "search")
-        if (
-            not isinstance(payload, dict)
-            or not isinstance(payload.get("quotes"), list)
-            or not isinstance(payload.get("news"), list)
-        ):
-            raise MarketDataError("Yahoo Finance returned a malformed search response.")
-        return payload, source_url
+    async def fundamentals(self, ticker: str) -> dict[str, Any]:
+        if not isinstance(ticker, str) or not ticker.strip():
+            raise MarketDataError("A ticker must be non-empty text.")
+        company = await self.edgar.resolve(ticker)
+        if company is None:
+            raise MarketDataError(
+                f"No SEC registrant with ticker {ticker.strip().upper()!r}. Use search_markets to find one."
+            )
+        report = await self.edgar.fundamentals(company)
+        report["retrieved_at"] = now_iso()
+        report["caveats"] = [
+            (
+                "Values are as reported in XBRL filings (US-GAAP), in the filer's reporting currency; "
+                "restatements appear as later filings."
+            ),
+            "Latest annual figures come from 10-K filings; latest quarterly figures from 10-Q filings.",
+            "This is filing data, not a valuation, forecast, or recommendation.",
+        ]
+        return report
 
-    async def _fetch_chart(self, symbol: str, period: str) -> _Chart:
-        interval = _period_interval(period)
-        url = _CHART_URL.format(quote(symbol, safe=""))
-        params = {"range": period, "interval": interval}
-        source_url = str(httpx.URL(url, params=params))
-        payload = await self._get_json(url, params, f"chart for {symbol}")
-        return self._parse_chart(
-            symbol, payload, period_label=period, interval=interval, source_url=source_url
-        )
-
-    async def _fetch_chart_window(self, symbol: str, start: date, end: date) -> _Chart:
-        interval = _window_interval(start, end)
-        url = _CHART_URL.format(quote(symbol, safe=""))
-        params = {
-            "period1": str(_unix_midnight(start)),
-            "period2": str(_unix_midnight(end + timedelta(days=1))),
-            "interval": interval,
-        }
-        source_url = str(httpx.URL(url, params=params))
-        payload = await self._get_json(url, params, f"chart for {symbol}")
-        return self._parse_chart(
-            symbol,
-            payload,
-            period_label=_window_label(start, end),
-            interval=interval,
-            source_url=source_url,
-        )
+    # -- analytics -----------------------------------------------------------------------
 
     @staticmethod
-    def _parse_chart(
-        symbol: str, payload: Any, *, period_label: str, interval: str, source_url: str
-    ) -> _Chart:
-        if not isinstance(payload, dict):
-            raise MarketDataError(
-                f"Yahoo Finance returned a malformed chart response for {symbol}."
-            )
-        chart = payload.get("chart")
-        if not isinstance(chart, dict):
-            raise MarketDataError(
-                f"Yahoo Finance returned a malformed chart response for {symbol}."
-            )
-        provider_error = chart.get("error")
-        if provider_error:
-            description = (
-                provider_error.get("description") if isinstance(provider_error, dict) else None
-            )
-            message = _text(description) or "Yahoo Finance did not recognise this symbol."
-            raise MarketDataError(f"Chart for {symbol} is unavailable: {message}")
-        result = chart.get("result")
-        if not isinstance(result, list) or not result or not isinstance(result[0], dict):
-            raise MarketDataError(f"Yahoo Finance returned no chart data for {symbol}.")
-        result_item = result[0]
-        meta = result_item.get("meta")
-        timestamps = result_item.get("timestamp")
-        indicators = result_item.get("indicators")
-        if (
-            not isinstance(meta, dict)
-            or not isinstance(timestamps, list)
-            or not isinstance(indicators, dict)
-        ):
-            raise MarketDataError(f"Yahoo Finance returned malformed chart data for {symbol}.")
-        quote_data = indicators.get("quote")
-        if (
-            not isinstance(quote_data, list)
-            or not quote_data
-            or not isinstance(quote_data[0], dict)
-        ):
-            raise MarketDataError(f"Yahoo Finance returned malformed chart prices for {symbol}.")
-        quote_item = quote_data[0]
-        closes = quote_item.get("close")
-        highs = quote_item.get("high")
-        lows = quote_item.get("low")
-        if not all(isinstance(values, list) for values in (closes, highs, lows)):
-            raise MarketDataError(f"Yahoo Finance returned malformed chart prices for {symbol}.")
-        if not (len(timestamps) == len(closes) == len(highs) == len(lows)):
-            raise MarketDataError(f"Yahoo Finance returned misaligned chart prices for {symbol}.")
-
-        adjusted: list[Any] | None = None
-        adjusted_sets = indicators.get("adjclose")
-        if adjusted_sets is not None:
-            if (
-                not isinstance(adjusted_sets, list)
-                or not adjusted_sets
-                or not isinstance(adjusted_sets[0], dict)
-                or not isinstance(adjusted_sets[0].get("adjclose"), list)
-            ):
-                raise MarketDataError(
-                    f"Yahoo Finance returned malformed adjusted chart prices for {symbol}."
-                )
-            adjusted = adjusted_sets[0]["adjclose"]
-            if len(adjusted) != len(timestamps):
-                raise MarketDataError(
-                    f"Yahoo Finance returned misaligned adjusted chart prices for {symbol}."
-                )
-
-        timezone_name = _text(meta.get("exchangeTimezoneName"))
-        try:
-            exchange_timezone = ZoneInfo(timezone_name) if timezone_name else UTC
-        except (ZoneInfoNotFoundError, ValueError) as exc:
-            raise MarketDataError(
-                f"Yahoo Finance returned an unknown exchange timezone for {symbol}."
-            ) from exc
-
-        bars: list[_Bar] = []
-        for index, raw_timestamp in enumerate(timestamps):
-            timestamp = _timestamp(raw_timestamp)
-            close = _finite_number(closes[index], "close")
-            high = _finite_number(highs[index], "high")
-            low = _finite_number(lows[index], "low")
-            adjusted_close = _finite_number(adjusted[index], "adjusted close") if adjusted else None
-            if close is None:
-                continue
-            observed_at = _iso_timestamp(timestamp)
-            bars.append(
-                _Bar(
-                    timestamp=timestamp,
-                    observed_at=observed_at,
-                    date=datetime.fromtimestamp(timestamp, exchange_timezone).date().isoformat(),
-                    close=close,
-                    adjusted_close=adjusted_close,
-                    high=high,
-                    low=low,
-                )
-            )
-        if not bars:
-            raise MarketDataError(
-                f"Yahoo Finance returned no usable price observations for {symbol}."
-            )
-        bars.sort(key=lambda bar: bar.timestamp)
-
-        provider_as_of = None
-        market_time = meta.get("regularMarketTime")
-        if market_time is not None:
-            provider_as_of = _iso_timestamp(_timestamp(market_time))
-        return _Chart(
-            symbol=symbol,
-            period=period_label,
-            interval=interval,
-            source_url=source_url,
-            name=_text(meta.get("longName")) or _text(meta.get("shortName")),
-            asset_type=_text(meta.get("instrumentType")),
-            currency=_text(meta.get("currency")),
-            exchange=_text(meta.get("fullExchangeName")) or _text(meta.get("exchangeName")),
-            bars=bars,
-            provider_as_of=provider_as_of,
-            timezone=timezone_name,
-            quote_price=_finite_number(meta.get("regularMarketPrice"), "quote price"),
-            day_high=_finite_number(meta.get("regularMarketDayHigh"), "day high"),
-            day_low=_finite_number(meta.get("regularMarketDayLow"), "day low"),
-        )
-
-    async def _get_json(self, url: str, params: dict[str, str], subject: str) -> Any:
-        key = str(httpx.URL(url, params=params))
-        cached = self._cache.get(key)
-        if cached is not None and time.monotonic() < cached[0]:
-            return cached[1]
-        try:
-            response = await self.client.get(url, params=params)
-        except httpx.TimeoutException as exc:
-            raise MarketDataError(
-                f"Yahoo Finance timed out while retrieving {subject}. Try again later."
-            ) from exc
-        except httpx.RequestError as exc:
-            raise MarketDataError(
-                f"Yahoo Finance request failed while retrieving {subject}: {exc.__class__.__name__}."
-            ) from exc
-        if response.status_code == 429:
-            raise MarketDataError(
-                "Yahoo Finance rate-limited this request (HTTP 429). Try again later."
-            )
-        if response.status_code == 404:
-            raise MarketDataError(
-                f"Yahoo Finance could not find {subject} (HTTP 404). Check the symbol or query."
-            )
-        if not response.is_success:
-            raise MarketDataError(
-                f"Yahoo Finance returned HTTP {response.status_code} while retrieving {subject}. Try again later."
-            )
-        try:
-            payload = response.json()
-        except ValueError as exc:
-            raise MarketDataError(
-                f"Yahoo Finance returned invalid JSON while retrieving {subject}."
-            ) from exc
-        if key not in self._cache and len(self._cache) >= _CACHE_MAX_ENTRIES:
-            del self._cache[min(self._cache, key=lambda entry: self._cache[entry][0])]
-        self._cache[key] = (time.monotonic() + _CACHE_TTL_SECONDS, payload)
-        return payload
-
-    @staticmethod
-    def _performance(bars: list[_Bar], basis: str) -> dict[str, Any]:
-        first = bars[0]
-        last = bars[-1]
-        first_value = first.adjusted_close if basis == "adjusted_close" else first.close
-        last_value = last.adjusted_close if basis == "adjusted_close" else last.close
-        assert first_value is not None and last_value is not None
+    def _performance(points: list[Point], measure: str, unit: str) -> dict[str, Any]:
+        first, last = points[0], points[-1]
         explanation = None
         return_percent = None
-        if len(bars) < 2 or first.timestamp == last.timestamp:
-            explanation = "Percent return needs at least two distinct price observations."
-        elif first_value <= 0:
-            explanation = (
-                "Percent return is unavailable because the starting price is zero or negative."
-            )
+        change = None
+        if len(points) < 2 or first.date == last.date:
+            explanation = "Change needs at least two distinct observations."
         else:
-            computed = ((last_value / first_value) - 1) * 100
-            if math.isfinite(computed):
-                return_percent = computed
+            change = last.value - first.value
+            if measure == "percent":
+                if first.value <= 0:
+                    explanation = "Percent return is unavailable because the starting value is zero or negative."
+                else:
+                    computed = (last.value / first.value - 1) * 100
+                    if math.isfinite(computed):
+                        return_percent = computed
+                    else:
+                        explanation = "Percent return exceeds the supported numeric range."
             else:
-                explanation = "Percent return exceeds the supported numeric range."
+                explanation = f"Change is in percentage points of the reported {unit} rate."
         return {
+            "measure": measure,
             "return_percent": return_percent,
-            "basis": basis,
+            "change": change,
+            "first_value": first.value,
+            "last_value": last.value,
             "first_observation_date": first.date,
             "last_observation_date": last.date,
             "explanation": explanation,
         }
 
     @staticmethod
-    def _statistics(bars: list[_Bar], basis: str, interval: str) -> dict[str, Any]:
-        values = [bar.adjusted_close if basis == "adjusted_close" else bar.close for bar in bars]
+    def _statistics(points: list[Point], measure: str, interval: str) -> dict[str, Any]:
+        values = [point.value for point in points]
         result: dict[str, Any] = {
             "observation_count": len(values),
             "max_drawdown_percent": None,
             "annualized_volatility_percent": None,
             "explanation": None,
         }
-        if len(values) < 3 or any(value is None or value <= 0 for value in values):
-            result["explanation"] = "Statistics need at least three positive price observations."
+        if measure != "percent":
+            result["explanation"] = (
+                "Drawdown and volatility apply to prices, not to rates or indexes."
+            )
             return result
-        series = [value for value in values if value is not None]
-        peak = series[0]
+        if len(values) < 3 or any(value <= 0 for value in values):
+            result["explanation"] = "Statistics need at least three positive observations."
+            return result
+        peak = values[0]
         drawdown = 0.0
-        for value in series:
+        for value in values:
             peak = max(peak, value)
             drawdown = min(drawdown, (value / peak - 1) * 100)
-        log_returns = [math.log(later / earlier) for earlier, later in pairwise(series)]
-        periods_per_year = 52 if interval == "1wk" else 252
+        log_returns = [math.log(later / earlier) for earlier, later in pairwise(values)]
         result["max_drawdown_percent"] = drawdown
         result["annualized_volatility_percent"] = (
-            statistics.stdev(log_returns) * math.sqrt(periods_per_year) * 100
+            statistics.stdev(log_returns) * math.sqrt(_PERIODS_PER_YEAR.get(interval, 252)) * 100
         )
         return result

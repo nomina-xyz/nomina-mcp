@@ -43,14 +43,16 @@ gcloud run domain-mappings create --service nomina-mcp --domain mcp.example.com
 
 ## Before exposing it publicly
 
-- **Rate limiting.** The server has no authentication and every request can reach Yahoo
-  Finance's public endpoints from one egress address. Put a per-client limit at the edge
+- **Rate limiting.** The server has no authentication and every request can reach the public
+  sources (Ethereum RPC gateways, SEC EDGAR, BLS, GDELT) from one egress address. Put a per-client limit at the edge
   (for a Cloudflare-fronted domain: a Rate Limiting rule on `/mcp`, e.g. 60 requests per
-  minute per IP). The built-in 60 s response cache absorbs repeated identical requests but
+  minute per IP). The built-in response cache absorbs repeated identical requests but
   is not an abuse control.
-- **Provider terms.** Hosting concentrates automated collection on one operator; review
-  Yahoo's terms (see [Data sources and limits](data-sources/)) before operating at scale or
-  for others.
+- **Source quotas.** Hosting concentrates every user's requests on one egress address: BLS
+  allows 25 requests per day per IP (Nomina caches for six hours), SEC asks for at most 10
+  requests per second with an identifying `User-Agent`, GDELT allows one request per five
+  seconds, and the public RPC gateways rate-limit bursts (Nomina paces and rotates between
+  them). See [Data sources and limits](data-sources/) before operating at scale.
 - **Logs.** Nomina writes no request logs; the platform and any proxy in front of it will.
   The [privacy policy](privacy/) already says so.
 - **Health.** `GET /healthz` returns `ok`; use it for the platform check. `POST /mcp` with

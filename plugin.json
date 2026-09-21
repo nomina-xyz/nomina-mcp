@@ -1,11 +1,21 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "nomina",
-  "version": "1.3.3",
-  "description": "Markets research for agents. Ticker search, price history, aligned comparisons. Read-only.",
-  "author": { "name": "Nomina" },
+  "version": "2.0.0",
+  "description": "Read-only markets research from public data: on-chain prices, Treasury yields, macro series, SEC filings, headlines.",
+  "author": {
+    "name": "Nomina"
+  },
   "homepage": "https://www.nomina.io",
   "repository": "https://github.com/nomina-xyz/nomina-mcp",
   "license": "MIT",
-  "keywords": ["finance", "research", "markets", "stocks", "crypto"]
+  "keywords": [
+    "finance",
+    "research",
+    "markets",
+    "crypto",
+    "treasury-yields",
+    "macro",
+    "sec-filings"
+  ]
 }

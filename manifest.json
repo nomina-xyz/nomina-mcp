@@ -2,9 +2,9 @@
   "manifest_version": "0.4",
   "name": "nomina",
   "display_name": "Nomina",
-  "version": "1.3.3",
-  "description": "Read-only financial markets research: ticker search, sourced price history, date-aligned comparisons, and a market overview. No API key, no account, no trading.",
-  "long_description": "Nomina gives Claude source-backed answers to market questions: which symbol is meant, what an asset has done over a period or an exact date window, how several assets compare on shared trading dates, and how the major indexes, rates, the dollar, gold, oil, BTC and ETH have moved.\n\nFour read-only tools. search_markets finds Yahoo Finance symbols and dated headlines for a company, asset, sector, or topic. research_asset returns the latest quote, period return, drawdown and volatility, dated price history, and related headlines for one symbol. compare_assets aligns 2–6 symbols on shared session dates in their local currencies with an explicit adjusted-vs-raw price basis. market_overview reports period returns for a fixed basket of indexes, rates, commodities, and crypto. Every response carries source URLs, observation timestamps, and caveats, so Claude cites what the data shows and says what it does not.\n\nData comes from Yahoo Finance's public chart and search endpoints and can be delayed, unavailable, or rate-limited; this is research, not a real-time execution feed or a financial-statements service. Data rights are not included: Yahoo's terms restrict automated collection without permission and redistribution; review those terms before use. Only your search terms, symbols, and requested history period or date window are sent to Yahoo — Nomina stores no conversations or queries. Requires a Claude Desktop release with MCPB v0.4 UV-runtime support and internet access for the first install and for market queries.",
+  "version": "2.0.0",
+  "description": "Read-only markets research from public and open-licensed data: on-chain Chainlink prices (crypto, FX, gold, SPY/QQQ/NVDA), US Treasury yields, BLS macro series, SEC filings, GDELT headlines. No API key, no account, no trading.",
+  "long_description": "Nomina gives Claude source-backed answers to market questions using data that anyone may read and redistribute: Chainlink price feeds read directly from the Ethereum blockchain (Bitcoin, Ether, Solana and other crypto, EUR/USD and other FX, gold and silver, and a small set of US equities and ETFs such as SPY, QQQ, NVDA and TSLA), the US Treasury's daily par yield curve, Bureau of Labor Statistics series (CPI, unemployment, payrolls, earnings), SEC EDGAR company filings, and GDELT news records.\n\nFive read-only tools. search_markets finds symbols in Nomina's catalog and recent headlines. research_asset returns the latest value, period change, drawdown and volatility, dated history, and headlines for one symbol, over a named period or an exact date window. compare_assets aligns 2–6 symbols on shared dates, each in its own unit. market_overview reports period changes for BTC, ETH, SOL, gold, SPY, QQQ, EUR/USD, US 2- and 10-year yields and CPI. company_fundamentals returns the latest annual and quarterly revenue, income, EPS, balance-sheet and cash-flow figures with filing links for an SEC registrant. Every response carries source URLs, observation timestamps, and caveats.\n\nLimits: individual stock prices are available only for the equities that have on-chain feeds; use company_fundamentals for filings data on other companies. Oracle prices are aggregates that update on heartbeat or deviation and can lag exchange closes; on-chain history starts when a feed launched. Headlines are GDELT records (title and link), not article text, and GDELT may throttle. Only your search terms, symbols, tickers, and requested period or date window are sent to these public sources — Nomina stores no conversations or queries. Requires a Claude Desktop release with MCPB v0.4 UV-runtime support and internet access for the first install and for queries.",
   "author": { "name": "Nomina", "url": "https://www.nomina.io" },
   "repository": { "type": "git", "url": "https://github.com/nomina-xyz/nomina-mcp.git" },
   "homepage": "https://www.nomina.io",
@@ -21,16 +21,17 @@
     }
   },
   "tools": [
-    { "name": "search_markets", "description": "Discover ticker symbols and dated financial news links." },
-    { "name": "research_asset", "description": "Research an asset with source-backed prices, historical performance and news." },
-    { "name": "compare_assets", "description": "Compare 2–6 assets using aligned dates and explicit currency and adjustment caveats." },
-    { "name": "market_overview", "description": "Period returns for major indexes, rates, the dollar, gold, oil, BTC, ETH and EURUSD." }
+    { "name": "search_markets", "description": "Find symbols in the catalog (on-chain feeds, Treasury tenors, macro series, SEC registrants) and recent headlines." },
+    { "name": "research_asset", "description": "Latest value, period change, drawdown/volatility, dated history and headlines for one symbol." },
+    { "name": "compare_assets", "description": "Compare 2–6 symbols over shared observation dates, each in its own unit." },
+    { "name": "market_overview", "description": "Period changes for BTC, ETH, SOL, gold, SPY, QQQ, EUR/USD, US 2y/10y yields and CPI." },
+    { "name": "company_fundamentals", "description": "Latest annual and quarterly financials and filings for an SEC registrant, from EDGAR XBRL." }
   ],
   "prompts": [
     { "name": "research_brief", "description": "Start a concise, cited financial research brief.", "arguments": ["topic"], "text": "Use Nomina to research ${arguments.topic}. Cite source links and observation dates, distinguish facts from interpretation, and report missing data and limitations." }
   ],
-  "keywords": ["finance", "research", "markets", "stocks", "crypto"],
-  "privacy_policies": ["https://nomina-xyz.github.io/nomina-mcp/privacy/", "https://legal.yahoo.com/us/en/yahoo/privacy/index.html"],
+  "keywords": ["finance", "research", "markets", "crypto", "treasury-yields", "macro", "sec-filings", "chainlink"],
+  "privacy_policies": ["https://nomina-xyz.github.io/nomina-mcp/privacy/"],
   "compatibility": {
     "platforms": ["darwin", "win32", "linux"],
     "runtimes": { "python": ">=3.12,<3.14" }

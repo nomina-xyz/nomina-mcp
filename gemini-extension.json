@@ -1,11 +1,18 @@
 {
   "name": "nomina",
-  "version": "1.3.3",
-  "description": "Markets research for agents. Ticker search, price history, aligned comparisons. Read-only.",
+  "version": "2.0.0",
+  "description": "Read-only markets research from public data: on-chain prices, Treasury yields, macro series, SEC filings, headlines.",
   "mcpServers": {
     "nomina": {
       "command": "uv",
-      "args": ["run", "--frozen", "--no-dev", "--directory", "${extensionPath}", "server.py"],
+      "args": [
+        "run",
+        "--frozen",
+        "--no-dev",
+        "--directory",
+        "${extensionPath}",
+        "server.py"
+      ],
       "cwd": "${extensionPath}"
     }
   }
