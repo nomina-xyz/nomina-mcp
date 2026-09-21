@@ -216,9 +216,10 @@ def main() -> None:
     )
     parser.add_argument(
         "--public-host",
-        default=os.environ.get("PUBLIC_HOST") or None,
+        default=os.environ.get("PUBLIC_HOST") or os.environ.get("RENDER_EXTERNAL_HOSTNAME") or None,
         help="Hostname clients use to reach the server, e.g. mcp.example.com (default: "
-        "$PUBLIC_HOST, else --host). Requests with another Host header are rejected.",
+        "$PUBLIC_HOST, then the platform's $RENDER_EXTERNAL_HOSTNAME, else --host). "
+        "Requests with another Host header are rejected.",
     )
     args = parser.parse_args()
     if args.transport == "stdio":

@@ -1,0 +1,13 @@
+# Render blueprint: Dashboard -> New -> Blueprint -> this repository.
+# Free plan sleeps after 15 idle minutes (about a minute to wake); a paid plan removes that.
+services:
+  - type: web
+    name: nomina-mcp
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeploy: true
+    # PUBLIC_HOST defaults to Render's RENDER_EXTERNAL_HOSTNAME inside the container; set it
+    # explicitly here once a custom domain (e.g. mcp.nomina.io) is attached.
