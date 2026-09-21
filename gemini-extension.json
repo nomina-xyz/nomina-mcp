@@ -1,6 +1,6 @@
 {
   "name": "nomina",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "Markets research for agents. Ticker search, price history, aligned comparisons. Read-only.",
   "mcpServers": {
     "nomina": {
