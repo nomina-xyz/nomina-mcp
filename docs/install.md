@@ -32,7 +32,8 @@ https://mcp.nomina.io/mcp
   Cursor, VS Code and Perplexity entries follow each vendor's published configuration
   ([Cursor](https://cursor.com/docs/mcp), [VS Code](https://code.visualstudio.com/docs/agent-customization/mcp-servers),
   [Perplexity](https://www.perplexity.ai/help-center/en/articles/11502712-local-and-remote-mcps-for-perplexity))
-  as of October 2026; they are not individually tested by Nomina. Claude and Claude Code are.
+  as of October 2026; they are not individually tested by Nomina. The hosted endpoint itself
+  and the Claude connector (via the published directory listing) are.
 - The server also answers at `https://nomina-mcp.onrender.com/mcp` (the hosting platform's hostname); both are the same deployment.
 - Any other Streamable HTTP client: the same URL. `GET /healthz` returns `ok`.
 
