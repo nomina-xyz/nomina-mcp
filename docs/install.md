@@ -20,15 +20,13 @@ https://mcp.nomina.io/mcp
   ```json
   { "mcpServers": { "nomina": { "url": "https://mcp.nomina.io/mcp" } } }
   ```
-- **VS Code (Copilot agent mode):** add to `.vscode/mcp.json` or user settings:
+- **VS Code (Copilot):** add to `.mcp.json` at the workspace root (shared with other
+  Copilot tools) or `~/.copilot/mcp-config.json`:
   ```json
-  { "servers": { "nomina": { "type": "http", "url": "https://mcp.nomina.io/mcp" } } }
+  { "mcpServers": { "nomina": { "type": "http", "url": "https://mcp.nomina.io/mcp" } } }
   ```
-- **Windsurf:** add to `~/.codeium/windsurf/mcp_config.json`:
-  ```json
-  { "mcpServers": { "nomina": { "serverUrl": "https://mcp.nomina.io/mcp" } } }
-  ```
-- **Perplexity:** Settings → Connectors → *Add connector* → Remote → URL
+  The VS Code-specific `.vscode/mcp.json` uses the same entry under a top-level `servers` key.
+- **Perplexity:** Plugins (sidebar) → *Add custom* → remote connector with URL
   `https://mcp.nomina.io/mcp`, no authentication.
 - The server also answers at `https://nomina-mcp.onrender.com/mcp` (the hosting platform's hostname); both are the same deployment.
 - Any other Streamable HTTP client: the same URL. `GET /healthz` returns `ok`.
