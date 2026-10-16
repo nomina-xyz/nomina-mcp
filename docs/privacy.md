@@ -20,7 +20,7 @@ below:
 
 Nomina sends nothing else to any source. Each source receives ordinary connection metadata for those
 requests, such as your IP address and Nomina's `User-Agent` header. SEC's fair-access policy
-requires an identifying `User-Agent`; Nomina sends `Nomina MCP` with the maintainer's contact
+requires an identifying `User-Agent`; Nomina sends `Nomina MCP` with a Nomina project role
 address, never anything about you.
 
 Hosts contacted: `ethereum.publicnode.com`, `rpc.mevblocker.io`,

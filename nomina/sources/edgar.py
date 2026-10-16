@@ -16,7 +16,7 @@ SUBMISSIONS_URL = "https://data.sec.gov/submissions/CIK{cik:010d}.json"
 FILING_INDEX = "https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/"
 COMPANY_PAGE = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK={cik:010d}"
 # SEC fair-access policy: identify the client as "Company contact@email" (no URLs in the UA).
-USER_AGENT = "Nomina MCP indifallacy2@gmail.com"
+USER_AGENT = "Nomina MCP hello@nomina.io"
 _HEADERS = {"User-Agent": USER_AGENT, "Accept": "application/json"}
 _FILING_FORMS = ("10-K", "10-Q", "8-K", "20-F", "6-K", "S-1")
 
