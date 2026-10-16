@@ -28,6 +28,11 @@ https://mcp.nomina.io/mcp
   The VS Code-specific `.vscode/mcp.json` uses the same entry under a top-level `servers` key.
 - **Perplexity:** Plugins (sidebar) → *Add custom* → remote connector with URL
   `https://mcp.nomina.io/mcp`, no authentication.
+
+  Cursor, VS Code and Perplexity entries follow each vendor's published configuration
+  ([Cursor](https://cursor.com/docs/mcp), [VS Code](https://code.visualstudio.com/docs/agent-customization/mcp-servers),
+  [Perplexity](https://www.perplexity.ai/help-center/en/articles/11502712-local-and-remote-mcps-for-perplexity))
+  as of October 2026; they are not individually tested by Nomina. Claude and Claude Code are.
 - The server also answers at `https://nomina-mcp.onrender.com/mcp` (the hosting platform's hostname); both are the same deployment.
 - Any other Streamable HTTP client: the same URL. `GET /healthz` returns `ok`.
 
