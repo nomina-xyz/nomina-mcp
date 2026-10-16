@@ -13,8 +13,23 @@ https://mcp.nomina.io/mcp
 ```
 
 - **Claude (web, desktop, mobile):** Settings → Connectors → *Add custom connector* → name
-  `Nomina`, URL `https://mcp.nomina.io/mcp`. No authentication is required.
+  `Nomina`, URL `https://mcp.nomina.io/mcp`. No authentication is required. Nomina is also
+  listed in the Claude directory, where it can be added in one click.
 - **Claude Code:** `claude mcp add --transport http nomina https://mcp.nomina.io/mcp`
+- **Cursor:** add to `~/.cursor/mcp.json` (or `.cursor/mcp.json` in a project):
+  ```json
+  { "mcpServers": { "nomina": { "url": "https://mcp.nomina.io/mcp" } } }
+  ```
+- **VS Code (Copilot agent mode):** add to `.vscode/mcp.json` or user settings:
+  ```json
+  { "servers": { "nomina": { "type": "http", "url": "https://mcp.nomina.io/mcp" } } }
+  ```
+- **Windsurf:** add to `~/.codeium/windsurf/mcp_config.json`:
+  ```json
+  { "mcpServers": { "nomina": { "serverUrl": "https://mcp.nomina.io/mcp" } } }
+  ```
+- **Perplexity:** Settings → Connectors → *Add connector* → Remote → URL
+  `https://mcp.nomina.io/mcp`, no authentication.
 - The server also answers at `https://nomina-mcp.onrender.com/mcp` (the hosting platform's hostname); both are the same deployment.
 - Any other Streamable HTTP client: the same URL. `GET /healthz` returns `ok`.
 
