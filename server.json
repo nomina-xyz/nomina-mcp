@@ -20,7 +20,7 @@
       "registryType": "mcpb",
       "identifier": "https://github.com/nomina-xyz/nomina-mcp/releases/download/v2.0.9/Nomina.mcpb",
       "version": "2.0.9",
-      "fileSha256": "3f96dd09167bc969b58c6da0b5decf14bd6597642bbedff9ccfd257dd21ab087",
+      "fileSha256": "2b93c64efe1b473614b5531827632e0f3e86378f059cbee9635a0ab1c9b61443",
       "transport": {
         "type": "stdio"
       }
