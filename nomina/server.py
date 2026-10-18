@@ -299,6 +299,10 @@ def main() -> None:
         host=args.host,
         port=args.port,
         log_level="warning",
+        # Bound open connections so idle or abusive clients cannot exhaust the worker;
+        # beyond this uvicorn answers 503 instead of queueing indefinitely.
+        limit_concurrency=256,
+        timeout_keep_alive=5,
     )
 
 

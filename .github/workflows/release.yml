@@ -90,7 +90,10 @@ jobs:
             jq '.packages |= map(select(.registryType != "oci"))' server.json > server.json.tmp && mv server.json.tmp server.json
             echo "::notice::Registry record for $GITHUB_REF_NAME generated WITHOUT the OCI package (image not public); this differs from the committed server.json and is permanent for this version."
           fi
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          # Pinned release + checksum: this binary runs with the job's OIDC token.
+          curl -fsSL -o mcp-publisher.tar.gz "https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz"
+          echo "a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc  mcp-publisher.tar.gz" | shasum -a 256 -c
+          tar xzf mcp-publisher.tar.gz mcp-publisher
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish
           git checkout -- server.json

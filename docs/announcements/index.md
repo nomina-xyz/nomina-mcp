@@ -2,6 +2,7 @@
 
 One page per release; each doubles as that release's GitHub release notes.
 
+- [v2.0.8](v2.0.8/) — hosted server hardening: POST-only `/mcp`, body cap, non-root container.
 - [v2.0.7](v2.0.7/) — Nomina role address in the SEC `User-Agent`.
 - [v2.0.6](v2.0.6/) — terms of use page; OpenAI domain-verification endpoint.
 - [v2.0.5](v2.0.5/) — multiple public hostnames; landing page at `/`.
