@@ -7,6 +7,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, PlainTextResponse, Response
+from starlette.staticfiles import StaticFiles
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from nomina.server import mcp
@@ -15,24 +16,12 @@ from nomina.server import mcp
 # 32-character symbols and two dates) is well under 1 KiB; the cap bounds memory per request.
 MAX_BODY_BYTES = 64 * 1024
 
+_ROOT = Path(__file__).resolve().parents[1]
 # The same 256x256 PNG the MCPB bundle ships; MCP hosts show the server URL's favicon.
-_ICON = (Path(__file__).resolve().parents[1] / "icon.png").read_bytes()
-
-
-_INDEX = """<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Nomina MCP</title>
-<link rel="icon" type="image/png" href="/icon.png">
-<meta name="description" content="Markets research for agents from public data. Read-only MCP server.">
-</head><body style="font-family:system-ui;max-width:40rem;margin:4rem auto;padding:0 1rem">
-<h1>Nomina MCP</h1>
-<p>Markets research for agents from public data: on-chain prices, Treasury yields, macro series,
-SEC filings, headlines. Read-only, no API key.</p>
-<p>MCP endpoint (Streamable HTTP): <code>POST /mcp</code></p>
-<p><a href="https://nomina-xyz.github.io/nomina-mcp/">Documentation</a> ·
-<a href="https://nomina-xyz.github.io/nomina-mcp/privacy/">Privacy policy</a> ·
-<a href="https://github.com/nomina-xyz/nomina-mcp">Source</a></p>
-</body></html>
-"""
+_ICON = (_ROOT / "icon.png").read_bytes()
+# The product site (site/): static HTML served at / with its assets under /assets.
+_SITE = _ROOT / "site"
+_INDEX = (_SITE / "index.html").read_text()
 
 
 async def index(request: Request) -> HTMLResponse:
@@ -113,7 +102,8 @@ class _BodyTooLarge(Exception):
 
 
 def build_app(hosts: list[str]) -> Starlette:
-    """Serve MCP at /mcp (stateless, JSON responses), GET /, /healthz, and the icon.
+    """Serve MCP at /mcp (stateless, JSON responses), the product site at / and /assets,
+    /healthz, and the icon.
 
     `hosts` are the names clients address the server by; DNS-rebinding protection rejects
     requests whose Host header is anything else (loopback names always pass).
@@ -134,5 +124,6 @@ def build_app(hosts: list[str]) -> Starlette:
     app.add_route("/.well-known/openai-apps-challenge", openai_apps_challenge, methods=["GET"])
     app.add_route("/favicon.ico", icon, methods=["GET"])
     app.add_route("/icon.png", icon, methods=["GET"])
+    app.mount("/assets", StaticFiles(directory=_SITE / "assets"), name="assets")
     app.add_middleware(_McpRequestGuard)
     return app

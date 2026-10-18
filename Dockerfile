@@ -4,6 +4,7 @@ COPY pyproject.toml uv.lock .python-version ./
 RUN uv sync --frozen --no-dev --no-install-project
 COPY server.py icon.png ./
 COPY nomina ./nomina
+COPY site ./site
 # Read-only service: run as an unprivileged user that owns nothing it can write to.
 RUN useradd --system --uid 10001 --no-create-home --shell /usr/sbin/nologin nomina
 USER nomina

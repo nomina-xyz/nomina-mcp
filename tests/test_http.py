@@ -73,3 +73,24 @@ async def test_mcp_rejects_non_post_and_oversized_bodies():
         ok = await client.post("/mcp", json=INIT, headers=headers)
         assert ok.status_code == 200
         assert (await client.get("/healthz")).status_code == 200
+
+
+@pytest.mark.anyio
+async def test_site_is_served_with_assets_and_no_traversal():
+    app = build_app(["mcp.nomina.io"])
+    async with (
+        app.router.lifespan_context(app),
+        httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://server") as c,
+    ):
+        page = await c.get("/")
+        assert page.status_code == 200
+        assert "Nomina MCP" in page.text
+        assert 'rel="canonical" href="https://mcp.nomina.io/"' in page.text
+        assert "noindex" not in page.text
+        css = await c.get("/assets/css/site.css")
+        assert css.status_code == 200
+        assert css.headers["content-type"].startswith("text/css")
+        font = await c.get("/assets/fonts/LayGrotesk-Regular.woff")
+        assert font.status_code == 200
+        assert (await c.get("/assets/../nomina/http.py")).status_code == 404
+        assert (await c.get("/assets/%2e%2e/nomina/http.py")).status_code == 404

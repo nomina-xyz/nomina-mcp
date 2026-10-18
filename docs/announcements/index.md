@@ -2,6 +2,7 @@
 
 One page per release; each doubles as that release's GitHub release notes.
 
+- [v2.0.9](v2.0.9/) — product site served at `mcp.nomina.io/`.
 - [v2.0.8](v2.0.8/) — hosted server hardening: POST-only `/mcp`, body cap, non-root container.
 - [v2.0.7](v2.0.7/) — Nomina role address in the SEC `User-Agent`.
 - [v2.0.6](v2.0.6/) — terms of use page; OpenAI domain-verification endpoint.
