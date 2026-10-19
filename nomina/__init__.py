@@ -1,3 +1,3 @@
 """Nomina: source-backed financial markets research over MCP."""
 
-__version__ = "2.0.9"
+__version__ = "2.0.10"

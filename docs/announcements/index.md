@@ -2,6 +2,7 @@
 
 One page per release; each doubles as that release's GitHub release notes.
 
+- [v2.0.10](v2.0.10/) — product site styling aligned with nomina.io.
 - [v2.0.9](v2.0.9/) — product site served at `mcp.nomina.io/`.
 - [v2.0.8](v2.0.8/) — hosted server hardening: POST-only `/mcp`, body cap, non-root container.
 - [v2.0.7](v2.0.7/) — Nomina role address in the SEC `User-Agent`.
